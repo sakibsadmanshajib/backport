@@ -151,11 +151,16 @@ with:
   ai_timeout_seconds: "120"
   ai_validation_commands: '["yarn build:shared", "yarn test:targeted"]'
   ai_immutable_patterns: '["**/migrations/**"]'
+  ai_forbidden_patterns: '["**/tenant-hooks/**", "**/authorization/**"]'
 ```
 
 `ai_provider` accepts `anthropic`, `openai`, or `openai-compatible`.
 `ai_base_url` is required only for `openai-compatible`. Provider and model names
 are configuration, not business logic.
+
+`ai_forbidden_patterns` adds repository-specific safety boundaries. It cannot
+remove built-in migration, dependency-manifest, lockfile, or test-removal
+protections.
 
 Secrets are passed directly to the selected adapter and are never included in
 prompts, logs, pull request bodies, comments, or model results.
