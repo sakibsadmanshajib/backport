@@ -42,12 +42,6 @@ export default [
       "func-style": ["error", "expression", { allowArrowFunctions: true }],
       // Import/no-extraneous-dependencies was replaced by import-x in xo v2.
       "import/no-extraneous-dependencies": "off",
-      // Prevent production source files from importing devDependencies (e.g. vitest, xo).
-      // The test/** and scripts/** override below sets this to "off" so devDep imports there are allowed.
-      "import-x/no-extraneous-dependencies": [
-        "error",
-        { devDependencies: false },
-      ],
       // Already taken care of by TypeScript.
       "import-x/namespace": "off",
       // Named exports are better for static analysis.
@@ -80,6 +74,16 @@ export default [
     files: ["vitest.config.mts", "vitest.live.config.mts"],
     rules: {
       "import-x/no-default-export": "off",
+    },
+  },
+  {
+    // Prevent production source files from importing devDependencies (e.g. vitest, xo).
+    files: ["src/**/*.ts"],
+    rules: {
+      "import-x/no-extraneous-dependencies": [
+        "error",
+        { devDependencies: false },
+      ],
     },
   },
   {
