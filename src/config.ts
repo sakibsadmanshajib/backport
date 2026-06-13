@@ -301,6 +301,22 @@ const readAiConfig = (reader: InputReader): AiConfig => {
   };
 };
 
+const getSecretsForConfig = (config: AiConfig): readonly string[] => {
+  if (!config.enabled) {
+    return [];
+  }
+
+  return [
+    config.apiKey,
+    config.awsAccessKeyId,
+    config.awsSecretAccessKey,
+    config.awsSessionToken,
+    config.gcpServiceAccountJson,
+  ].filter(
+    (value): value is string => typeof value === "string" && value.length > 0,
+  );
+};
+
 const getSafeAiConfigSummary = (
   config: AiConfig,
 ):
@@ -319,6 +335,7 @@ const getSafeAiConfigSummary = (
     : config;
 
 export {
+  getSecretsForConfig,
   getSafeAiConfigSummary,
   readAiConfig,
   type AiConfig,

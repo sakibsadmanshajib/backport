@@ -153,6 +153,18 @@ const backport = async ({
 
   const baseBranches = getBaseBranches({ labelRegExp, payload });
 
+  const safeBranchPattern = /^[A-Za-z0-9._/-]+$/u;
+
+  for (const base of baseBranches) {
+    if (!safeBranchPattern.test(base)) {
+      throw new Error(
+        `Base branch name "${base}" contains unsafe characters. Branch names must match ${String(
+          safeBranchPattern,
+        )}.`,
+      );
+    }
+  }
+
   if (baseBranches.length === 0) {
     info("No backports required.");
     return { createdPullRequests: {}, destinations: [] };
@@ -177,7 +189,7 @@ const backport = async ({
   cloneUrl.username = "x-access-token";
   cloneUrl.password = token;
 
-  await exec("git", ["clone", cloneUrl.toString()]);
+  await exec("git", ["clone", cloneUrl.toString()], { silent: true });
 
   const git = new GitRepository(repo);
   await git.configureIdentity(
