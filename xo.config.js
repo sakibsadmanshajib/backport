@@ -9,6 +9,10 @@ import sortDestructureKeys from "eslint-plugin-sort-destructure-keys";
 /** @type {import('xo').FlatXoConfig} */
 export default [
   {
+    // .eslintrc.cjs is a legacy compat shim for editor integrations; xo is the project linter.
+    ignores: [".eslintrc.cjs"],
+  },
+  {
     plugins: {
       "sort-destructure-keys": sortDestructureKeys,
     },
