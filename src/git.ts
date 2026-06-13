@@ -158,7 +158,7 @@ class GitRepository {
   }
 
   async createBranch(branch: string): Promise<void> {
-    await this.run(["switch", "-c", branch]);
+    await this.run(["switch", "--create", "--", branch]);
   }
 
   async configureIdentity(name: string, email: string): Promise<void> {
