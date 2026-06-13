@@ -1,7 +1,23 @@
 import { z } from "zod";
 
-const aiProviderSchema = z.enum(["anthropic", "openai", "openai-compatible"]);
+const aiProviderSchema = z.enum([
+  "anthropic",
+  "anthropic-bedrock",
+  "anthropic-compatible",
+  "anthropic-vertex",
+  "openai",
+  "openai-compatible",
+]);
 const stringArraySchema = z.array(z.string().trim().min(1));
+
+const keyBasedProviders = new Set([
+  "anthropic",
+  "anthropic-compatible",
+  "openai",
+  "openai-compatible",
+]);
+
+const baseUrlProviders = new Set(["anthropic-compatible", "openai-compatible"]);
 
 type AiProviderName = z.infer<typeof aiProviderSchema>;
 
@@ -15,9 +31,16 @@ type DisabledAiConfig = {
 
 type EnabledAiConfig = {
   apiKey: string;
+  awsAccessKeyId?: string;
+  awsRegion?: string;
+  awsSecretAccessKey?: string;
+  awsSessionToken?: string;
   baseUrl?: string;
   enabled: true;
   forbiddenPatterns: readonly string[];
+  gcpProject?: string;
+  gcpRegion?: string;
+  gcpServiceAccountJson?: string;
   immutablePatterns: readonly string[];
   label: string;
   maxConflictedFiles: number;
@@ -122,21 +145,63 @@ const readAiConfig = (reader: InputReader): AiConfig => {
 
   if (!providerResult.success) {
     throw new Error(
-      'Input "ai_provider" must be "anthropic", "openai", or "openai-compatible".',
+      'Input "ai_provider" must be one of "anthropic", "anthropic-bedrock", "anthropic-compatible", "anthropic-vertex", "openai", or "openai-compatible".',
     );
   }
 
   const provider = providerResult.data;
+  const optional = (name: string): string | undefined => {
+    const value = reader.get(name).trim();
+    return value.length > 0 ? value : undefined;
+  };
+
   const baseUrl = reader.get("ai_base_url").trim();
 
-  if (provider === "openai-compatible" && baseUrl.length === 0) {
+  if (baseUrlProviders.has(provider) && baseUrl.length === 0) {
     throw new Error(
-      'Input "ai_base_url" is required for the openai-compatible provider.',
+      `Input "ai_base_url" is required for the ${provider} provider.`,
     );
   }
 
+  if (
+    provider === "anthropic-bedrock" &&
+    optional("ai_aws_region") === undefined
+  ) {
+    throw new Error(
+      'Input "ai_aws_region" is required for the anthropic-bedrock provider.',
+    );
+  }
+
+  if (provider === "anthropic-vertex") {
+    if (optional("ai_gcp_project") === undefined) {
+      throw new Error(
+        'Input "ai_gcp_project" is required for the anthropic-vertex provider.',
+      );
+    }
+
+    if (optional("ai_gcp_region") === undefined) {
+      throw new Error(
+        'Input "ai_gcp_region" is required for the anthropic-vertex provider.',
+      );
+    }
+  }
+
+  const awsAccessKeyId = optional("ai_aws_access_key_id");
+  const awsRegion = optional("ai_aws_region");
+  const awsSecretAccessKey = optional("ai_aws_secret_access_key");
+  const awsSessionToken = optional("ai_aws_session_token");
+  const gcpProject = optional("ai_gcp_project");
+  const gcpRegion = optional("ai_gcp_region");
+  const gcpServiceAccountJson = optional("ai_gcp_service_account_json");
+
   return {
-    apiKey: getRequiredInput(reader, "ai_api_key"),
+    apiKey: keyBasedProviders.has(provider)
+      ? getRequiredInput(reader, "ai_api_key")
+      : "",
+    ...(awsAccessKeyId ? { awsAccessKeyId } : {}),
+    ...(awsRegion ? { awsRegion } : {}),
+    ...(awsSecretAccessKey ? { awsSecretAccessKey } : {}),
+    ...(awsSessionToken ? { awsSessionToken } : {}),
     ...(baseUrl.length > 0 ? { baseUrl } : {}),
     enabled: true,
     forbiddenPatterns: parseStringArray({
@@ -144,6 +209,9 @@ const readAiConfig = (reader: InputReader): AiConfig => {
       name: "ai_forbidden_patterns",
       reader,
     }),
+    ...(gcpProject ? { gcpProject } : {}),
+    ...(gcpRegion ? { gcpRegion } : {}),
+    ...(gcpServiceAccountJson ? { gcpServiceAccountJson } : {}),
     immutablePatterns: parseStringArray({
       fallback: ["**/migrations/**", "**/migration/**"],
       name: "ai_immutable_patterns",

@@ -25,23 +25,106 @@ describe("readAiConfig", () => {
     expect(readAiConfig(inputReader({}))).toEqual({ enabled: false });
   });
 
-  it.each(["anthropic", "openai", "openai-compatible"] as const)(
-    "accepts the %s provider",
-    (provider) => {
-      const config = readAiConfig(
+  it.each([
+    ["anthropic", {}],
+    ["openai", {}],
+    ["openai-compatible", { ai_base_url: "https://models.example.test/v1" }],
+    ["anthropic-compatible", { ai_base_url: "https://proxy.example.test" }],
+    ["anthropic-bedrock", { ai_aws_region: "us-east-1" }],
+    [
+      "anthropic-vertex",
+      { ai_gcp_project: "demo-project", ai_gcp_region: "us-central1" },
+    ],
+  ] as const)("accepts the %s provider", (provider, extra) => {
+    const config = readAiConfig(
+      inputReader({ ...enabledInputs, ai_provider: provider, ...extra }),
+    );
+
+    expect(config).toMatchObject({ enabled: true, provider });
+  });
+
+  it("does not require ai_api_key for bedrock", () => {
+    const config = readAiConfig(
+      inputReader({
+        ...enabledInputs,
+        ai_api_key: "",
+        ai_aws_region: "us-east-1",
+        ai_provider: "anthropic-bedrock",
+      }),
+    );
+
+    expect(config).toMatchObject({ apiKey: "", enabled: true });
+  });
+
+  it("captures explicit bedrock and vertex credentials", () => {
+    const bedrock = readAiConfig(
+      inputReader({
+        ...enabledInputs,
+        ai_api_key: "",
+        ai_aws_access_key_id: "AKIAEXAMPLE",
+        ai_aws_region: "us-east-1",
+        ai_aws_secret_access_key: "aws-secret",
+        ai_provider: "anthropic-bedrock",
+      }),
+    );
+    const vertex = readAiConfig(
+      inputReader({
+        ...enabledInputs,
+        ai_api_key: "",
+        ai_gcp_project: "demo-project",
+        ai_gcp_region: "us-central1",
+        ai_gcp_service_account_json: '{"type":"service_account"}',
+        ai_provider: "anthropic-vertex",
+      }),
+    );
+
+    expect(bedrock).toMatchObject({
+      awsAccessKeyId: "AKIAEXAMPLE",
+      awsRegion: "us-east-1",
+      awsSecretAccessKey: "aws-secret",
+    });
+    expect(vertex).toMatchObject({
+      gcpProject: "demo-project",
+      gcpRegion: "us-central1",
+      gcpServiceAccountJson: '{"type":"service_account"}',
+    });
+  });
+
+  it("requires ai_aws_region for bedrock", () => {
+    expect(() =>
+      readAiConfig(
         inputReader({
           ...enabledInputs,
-          ai_base_url:
-            provider === "openai-compatible"
-              ? "https://models.example.test/v1"
-              : "",
-          ai_provider: provider,
+          ai_api_key: "",
+          ai_provider: "anthropic-bedrock",
         }),
-      );
+      ),
+    ).toThrow("ai_aws_region");
+  });
 
-      expect(config).toMatchObject({ enabled: true, provider });
+  it.each(["ai_gcp_project", "ai_gcp_region"] as const)(
+    "requires %s for vertex",
+    (missing) => {
+      const inputs = {
+        ...enabledInputs,
+        ai_api_key: "",
+        ai_gcp_project: "demo-project",
+        ai_gcp_region: "us-central1",
+        ai_provider: "anthropic-vertex",
+        [missing]: "",
+      };
+
+      expect(() => readAiConfig(inputReader(inputs))).toThrow(missing);
     },
   );
+
+  it("requires ai_base_url for an anthropic-compatible provider", () => {
+    expect(() =>
+      readAiConfig(
+        inputReader({ ...enabledInputs, ai_provider: "anthropic-compatible" }),
+      ),
+    ).toThrow("ai_base_url");
+  });
 
   it.each(["ai_model", "ai_api_key", "ai_validation_commands"] as const)(
     "requires %s when AI is enabled",
