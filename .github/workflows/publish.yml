@@ -4,12 +4,43 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
   publish:
     name: Publish
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: dylanvann/publish-github-action@v1.1.49
+      - uses: actions/checkout@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          cache: yarn
+          node-version: 24
+      - run: yarn install --frozen-lockfile
+      - run: yarn test
+      - run: yarn run build
+      - run: test -f dist/index.js
+      - name: Publish release tags
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version="v$(node -p "require('./package.json').version")"
+          major="${version%%.*}"
+          if git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
+            echo "Tag ${version} already exists. Nothing to publish."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # dist/ is gitignored on main; force it into the release commit so the
+          # action is usable directly by tag without tracking build output.
+          git add -f dist
+          git commit -m "Build ${version}"
+          git tag -a "${version}" -m "${version}"
+          git tag -f "${major}"
+          git push origin "refs/tags/${version}"
+          git push -f origin "refs/tags/${major}"

@@ -20,4 +20,4 @@ jobs:
       - run: yarn run build
       - run: yarn run prettier --check
       - run: yarn run xo
-      - run: git diff --exit-code -- dist
+      - run: test -f dist/index.js
