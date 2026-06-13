@@ -195,6 +195,12 @@ const validateResolutionCandidate = ({
       reasons.push(`Resolution discarded the source change in ${output.path}.`);
     }
 
+    if (conflict.theirs !== undefined && output.content === conflict.theirs) {
+      reasons.push(
+        `Resolution discards the destination change in ${output.path}.`,
+      );
+    }
+
     if (conflict.ours !== undefined && conflict.theirs !== undefined) {
       const adaptationLines = Math.min(
         changedLineCount(conflict.ours, output.content),

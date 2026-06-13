@@ -120,6 +120,48 @@ describe("GitBackportWorkspace", () => {
     });
   });
 
+  it("rejects a decision file whose path is not in context.files", async () => {
+    const { config, context, decision, git, repository } = await setup();
+    const workspace = new GitBackportWorkspace(git, async () => 0);
+    const rogue = `${repository.path}/injected.ts`;
+
+    const result = await workspace.applyAndValidate(
+      {
+        ...decision,
+        files: [{ content: "x", path: "injected.ts", reason: "x" }],
+      },
+      context,
+      config,
+    );
+
+    expect(result).toMatchObject({ valid: false });
+    // File must NOT have been written to disk before rejection
+    await expect(
+      import("node:fs/promises").then(async (fs) => fs.access(rogue)),
+    ).rejects.toThrow();
+  });
+
+  it("rejects a decision file targeting a protected path before write", async () => {
+    const { config, context, decision, git, repository } = await setup();
+    const workspace = new GitBackportWorkspace(git, async () => 0);
+    const migrationPath = "data/migrations/20260101-add.ts";
+    const absolutePath = `${repository.path}/${migrationPath}`;
+
+    const result = await workspace.applyAndValidate(
+      {
+        ...decision,
+        files: [{ content: "x", path: migrationPath, reason: "x" }],
+      },
+      context,
+      config,
+    );
+
+    expect(result).toMatchObject({ valid: false });
+    await expect(
+      import("node:fs/promises").then(async (fs) => fs.access(absolutePath)),
+    ).rejects.toThrow();
+  });
+
   it("runs configured compound commands in a non-interactive shell", async () => {
     const { config, context, decision, git } = await setup();
     const workspace = new GitBackportWorkspace(git);
@@ -130,6 +172,51 @@ describe("GitBackportWorkspace", () => {
         validationCommands: ["cd . && test -f status.ts"],
       }),
     ).resolves.toEqual({ valid: true });
+  });
+});
+
+describe("GitRepository.abortCherryPick", () => {
+  it("falls back to quit and hard reset when abort fails", async () => {
+    const repository = await TestGitRepository.create();
+    repositories.push(repository);
+
+    const calls: string[][] = [];
+    const runner = async (args: readonly string[]) => {
+      calls.push([...args]);
+      // Simulate abort failure, succeed for everything else
+      if (args[0] === "cherry-pick" && args[1] === "--abort") {
+        return { exitCode: 128, stderr: "index not up to date", stdout: "" };
+      }
+
+      return { exitCode: 0, stderr: "", stdout: "" };
+    };
+
+    const git = new GitRepository(repository.path, runner);
+    await git.abortCherryPick();
+
+    const commandStrings = calls.map((c) => c.join(" "));
+    expect(commandStrings).toContain("cherry-pick --abort");
+    expect(commandStrings).toContain("cherry-pick --quit");
+    expect(commandStrings).toContain("reset --hard HEAD");
+  });
+
+  it("does not fall back when abort succeeds", async () => {
+    const repository = await TestGitRepository.create();
+    repositories.push(repository);
+
+    const calls: string[][] = [];
+    const runner = async (args: readonly string[]) => {
+      calls.push([...args]);
+      return { exitCode: 0, stderr: "", stdout: "" };
+    };
+
+    const git = new GitRepository(repository.path, runner);
+    await git.abortCherryPick();
+
+    const commandStrings = calls.map((c) => c.join(" "));
+    expect(commandStrings).toContain("cherry-pick --abort");
+    expect(commandStrings).not.toContain("cherry-pick --quit");
+    expect(commandStrings).not.toContain("reset --hard HEAD");
   });
 });
 

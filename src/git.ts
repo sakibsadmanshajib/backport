@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
+import { warning } from "@actions/core";
 import { getExecOutput } from "@actions/exec";
 
 type GitCommandResult = Readonly<{
@@ -203,7 +204,23 @@ class GitRepository {
   }
 
   async abortCherryPick(): Promise<void> {
-    await this.run(["cherry-pick", "--abort"], { allowFailure: true });
+    const result = await this.run(["cherry-pick", "--abort"], {
+      allowFailure: true,
+    });
+
+    if (result.exitCode === 0) {
+      return;
+    }
+
+    // Abort failed (e.g. "index not up to date" after validation mutated a
+    // tracked file). Log the original failure and force a clean state so the
+    // next destination branch's switch/createBranch does not fail.
+    const originalError = result.stderr.trim();
+    warning(
+      `git cherry-pick --abort failed (${originalError}); forcing clean state via --quit + reset --hard HEAD`,
+    );
+    await this.run(["cherry-pick", "--quit"], { allowFailure: true });
+    await this.run(["reset", "--hard", "HEAD"]);
   }
 
   async stablePatchId(commitSha: string): Promise<string> {

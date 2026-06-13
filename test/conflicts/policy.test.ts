@@ -196,6 +196,25 @@ describe("validateResolutionCandidate", () => {
     ).toMatchObject({ valid: false });
   });
 
+  it("rejects a resolution identical to theirs", () => {
+    const conflict = context();
+
+    expect(
+      validateResolutionCandidate({
+        config,
+        context: conflict,
+        decision: decision("status.ts", conflict.files[0]?.theirs),
+        diffCheckPassed: true,
+        immutableChangedPaths: [],
+        omittedSourcePaths: [],
+        validationMutatedPaths: [],
+      }),
+    ).toMatchObject({
+      reasons: [expect.stringContaining("discards the destination change")],
+      valid: false,
+    });
+  });
+
   it("rejects a resolution above the line limit", () => {
     expect(
       validateResolutionCandidate({

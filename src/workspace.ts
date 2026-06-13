@@ -5,6 +5,7 @@ import type { EnabledAiConfig } from "./config.js";
 import { collectConflictContext } from "./conflicts/context.js";
 import {
   type ValidationResult,
+  isProtectedPath,
   validateResolutionCandidate,
 } from "./conflicts/policy.js";
 import {
@@ -109,6 +110,25 @@ class GitBackportWorkspace {
     context: ConflictContext,
     config: EnabledAiConfig,
   ): Promise<ValidationResult> {
+    const conflictedPaths = new Set(context.files.map((f) => f.path));
+    const preWriteReasons: string[] = [];
+
+    for (const file of decision.files) {
+      if (!conflictedPaths.has(file.path)) {
+        preWriteReasons.push(
+          `Resolution modified a non-conflicted file: ${file.path}.`,
+        );
+      } else if (isProtectedPath(file.path, config)) {
+        preWriteReasons.push(
+          `Resolution modified a forbidden file: ${file.path}.`,
+        );
+      }
+    }
+
+    if (preWriteReasons.length > 0) {
+      return { reasons: preWriteReasons, valid: false };
+    }
+
     for (const file of decision.files) {
       // File writes are sequential to keep errors tied to the exact output path.
       // eslint-disable-next-line no-await-in-loop
