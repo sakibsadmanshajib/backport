@@ -133,15 +133,16 @@ const compatibleClientFactory =
 const bedrockClientFactory =
   (auth: BedrockAuth): AnthropicClientFactory =>
   (options) => {
+    const { accessKeyId, secretAccessKey } = auth;
     const hasExplicitKeys =
-      auth.accessKeyId !== undefined && auth.secretAccessKey !== undefined;
+      accessKeyId !== undefined && secretAccessKey !== undefined;
     const client = new AnthropicBedrock({
       awsRegion: auth.region,
       ...(hasExplicitKeys
         ? {
             providerChainResolver: async () => async () => ({
-              accessKeyId: auth.accessKeyId!,
-              secretAccessKey: auth.secretAccessKey!,
+              accessKeyId,
+              secretAccessKey,
               ...(auth.sessionToken ? { sessionToken: auth.sessionToken } : {}),
             }),
           }
@@ -156,19 +157,19 @@ const bedrockClientFactory =
 const vertexClientFactory =
   (auth: VertexAuth): AnthropicClientFactory =>
   (options) => {
+    const { serviceAccountJson } = auth;
+    const googleAuth = serviceAccountJson
+      ? new GoogleAuth({
+          credentials: JSON.parse(serviceAccountJson) as {
+            [key: string]: unknown;
+          },
+          scopes: "https://www.googleapis.com/auth/cloud-platform",
+        })
+      : undefined;
     const client = new AnthropicVertex({
       projectId: auth.project,
       region: auth.region,
-      ...(auth.serviceAccountJson
-        ? {
-            googleAuth: new GoogleAuth({
-              credentials: JSON.parse(auth.serviceAccountJson) as {
-                [key: string]: unknown;
-              },
-              scopes: "https://www.googleapis.com/auth/cloud-platform",
-            }),
-          }
-        : {}),
+      ...(googleAuth ? { googleAuth } : {}),
       ...options,
     });
     return wrapClient(async (parameters, requestOptions) =>
@@ -194,12 +195,12 @@ class AnthropicFamilyProvider implements StructuredModelProvider {
   async generate<TSchema extends z.ZodTypeAny>(
     request: StructuredModelRequest<TSchema>,
   ): Promise<ModelResult<z.infer<TSchema>>> {
-    const client = this.#clientFactory({
-      maxRetries: 0,
-      timeout: request.timeoutMs,
-    });
-
     try {
+      const client = this.#clientFactory({
+        maxRetries: 0,
+        timeout: request.timeoutMs,
+      });
+
       const response = await client.messages.parse(
         {
           max_tokens: request.maxOutputTokens,
