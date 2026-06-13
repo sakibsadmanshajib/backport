@@ -119,6 +119,51 @@ The compatible endpoint must implement strict JSON Schema response formatting
 through OpenAI-style Chat Completions. The action does not fall back to
 plain-text JSON extraction.
 
+### Anthropic-Compatible
+
+```yaml
+ai_provider: anthropic-compatible
+ai_model: <claude-model>
+ai_api_key: ${{ secrets.AI_API_KEY }}
+ai_base_url: https://anthropic-proxy.example.com
+```
+
+The proxy must implement the Anthropic Messages API including `output_config`
+structured outputs. The action does not fall back to plain-text JSON.
+
+### Claude on Bedrock
+
+```yaml
+ai_provider: anthropic-bedrock
+ai_model: anthropic.claude-3-5-sonnet-20241022-v2:0
+ai_aws_region: us-east-1
+# Optional explicit credentials; otherwise the AWS credential chain is used.
+ai_aws_access_key_id: ${{ secrets.AI_AWS_ACCESS_KEY_ID }}
+ai_aws_secret_access_key: ${{ secrets.AI_AWS_SECRET_ACCESS_KEY }}
+```
+
+### Claude on Vertex AI
+
+```yaml
+ai_provider: anthropic-vertex
+ai_model: claude-3-5-sonnet-v2@20241022
+ai_gcp_project: my-project-id
+ai_gcp_region: us-central1
+# Optional explicit service account; otherwise Application Default Credentials are used.
+ai_gcp_service_account_json: ${{ secrets.AI_GCP_SERVICE_ACCOUNT_JSON }}
+```
+
+Bedrock and Vertex do not use `ai_api_key`.
+
+### Google Gemini and Cloudflare Workers AI
+
+Google Gemini and Cloudflare native models reach the action through the
+existing `openai-compatible` provider plus `ai_base_url`; no provider-specific
+code exists for them. A target is supported only after it passes the live smoke
+in `scripts/provider-smoke.live.ts` with real strict structured output. Any
+endpoint that cannot return a populated strict `parsed` result is unsupported,
+because the action never falls back to plain-text JSON.
+
 ## Migration Safety
 
 AI never modifies migrations.
@@ -155,27 +200,36 @@ The candidate is rejected when:
 - conflict markers remain
 - the resolution exceeds configured limits
 
-`INPUT_AI_API_KEY` and `INPUT_GITHUB_TOKEN` are removed from validation command
-environments.
+`INPUT_AI_API_KEY`, `INPUT_GITHUB_TOKEN`, the cloud credential inputs
+(`INPUT_AI_AWS_*`, `INPUT_AI_GCP_SERVICE_ACCOUNT_JSON`), and ambient cloud
+variables (`AWS_*`, `GOOGLE_APPLICATION_CREDENTIALS`) are removed from
+validation command environments.
 
 ## Inputs
 
-| Input                     | Default                       | Description                                   |
-| ------------------------- | ----------------------------- | --------------------------------------------- |
-| `github_token`            | Required                      | GitHub API and push token                     |
-| `label_pattern`           | `^backport (?<base>([^ ]+))$` | Pattern with a required `base` group          |
-| `ai_enabled`              | `false`                       | Enable conflict fallback                      |
-| `ai_provider`             | `anthropic`                   | `anthropic`, `openai`, or `openai-compatible` |
-| `ai_model`                | None                          | Provider model identifier                     |
-| `ai_api_key`              | None                          | Provider API key                              |
-| `ai_base_url`             | None                          | Required for OpenAI-compatible endpoints      |
-| `ai_label`                | `AI backport`                 | Label for AI-created drafts                   |
-| `ai_max_conflicted_files` | `3`                           | Maximum eligible conflict files               |
-| `ai_max_resolution_lines` | `60`                          | Maximum adapted lines                         |
-| `ai_timeout_seconds`      | `120`                         | Timeout for each model call                   |
-| `ai_validation_commands`  | `[]`                          | Required non-empty JSON command array         |
-| `ai_immutable_patterns`   | Migration patterns            | Additional files AI cannot modify             |
-| `ai_forbidden_patterns`   | `[]`                          | Additional repository safety patterns         |
+| Input                         | Default                       | Description                                                                                                 |
+| ----------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `github_token`                | Required                      | GitHub API and push token                                                                                   |
+| `label_pattern`               | `^backport (?<base>([^ ]+))$` | Pattern with a required `base` group                                                                        |
+| `ai_enabled`                  | `false`                       | Enable conflict fallback                                                                                    |
+| `ai_provider`                 | `anthropic`                   | `anthropic`, `anthropic-bedrock`, `anthropic-vertex`, `anthropic-compatible`, `openai`, `openai-compatible` |
+| `ai_model`                    | None                          | Provider model identifier                                                                                   |
+| `ai_api_key`                  | None                          | Provider API key (not used by bedrock or vertex)                                                            |
+| `ai_base_url`                 | None                          | Required for openai-compatible and anthropic-compatible                                                     |
+| `ai_aws_region`               | None                          | Required for anthropic-bedrock                                                                              |
+| `ai_aws_access_key_id`        | None                          | Optional explicit Bedrock credential                                                                        |
+| `ai_aws_secret_access_key`    | None                          | Optional explicit Bedrock credential                                                                        |
+| `ai_aws_session_token`        | None                          | Optional explicit Bedrock credential                                                                        |
+| `ai_gcp_project`              | None                          | Required for anthropic-vertex                                                                               |
+| `ai_gcp_region`               | None                          | Required for anthropic-vertex                                                                               |
+| `ai_gcp_service_account_json` | None                          | Optional explicit Vertex credential                                                                         |
+| `ai_label`                    | `AI backport`                 | Label for AI-created drafts                                                                                 |
+| `ai_max_conflicted_files`     | `3`                           | Maximum eligible conflict files                                                                             |
+| `ai_max_resolution_lines`     | `60`                          | Maximum adapted lines                                                                                       |
+| `ai_timeout_seconds`          | `120`                         | Timeout for each model call                                                                                 |
+| `ai_validation_commands`      | `[]`                          | Required non-empty JSON command array                                                                       |
+| `ai_immutable_patterns`       | Migration patterns            | Additional files AI cannot modify                                                                           |
+| `ai_forbidden_patterns`       | `[]`                          | Additional repository safety patterns                                                                       |
 
 The existing body, title, head, and label templates remain supported through
 `body_template`, `title_template`, `head_template`, and `labels_template`.
