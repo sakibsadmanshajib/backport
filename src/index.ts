@@ -4,9 +4,13 @@ import type { PullRequestEvent } from "@octokit/webhooks-types";
 import ensureError from "ensure-error";
 import { template } from "lodash-es";
 import { backport } from "./backport.js";
+import { readAiConfig } from "./config.js";
 
 const run = async () => {
   try {
+    const aiConfig = readAiConfig({
+      get: (name, options) => getInput(name, options),
+    });
     const [getBody, getHead, _getLabels, getTitle] = [
       "body_template",
       "head_template",
@@ -46,7 +50,8 @@ const run = async () => {
       );
     }
 
-    const createdPullRequestBaseBranchToNumber = await backport({
+    const result = await backport({
+      aiConfig,
       getBody,
       getHead,
       getLabels,
@@ -57,8 +62,24 @@ const run = async () => {
     });
     setOutput(
       "created_pull_requests",
-      JSON.stringify(createdPullRequestBaseBranchToNumber),
+      JSON.stringify(result.createdPullRequests),
     );
+    const failures = result.destinations.filter(
+      (
+        destination,
+      ): destination is Extract<
+        (typeof result.destinations)[number],
+        { status: "failed" }
+      > => destination.status === "failed",
+    );
+
+    if (failures.length > 0) {
+      setFailed(
+        new Error(
+          failures.map(({ base, reason }) => `${base}: ${reason}`).join("\n"),
+        ),
+      );
+    }
   } catch (_error: unknown) {
     const error = ensureError(_error);
     setFailed(error);
