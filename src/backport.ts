@@ -1,4 +1,4 @@
-import { group, info, error as logError, warning } from "@actions/core";
+import { group, info, warning } from "@actions/core";
 import { exec } from "@actions/exec";
 import { getOctokit } from "@actions/github";
 import type { GitHub } from "@actions/github/lib/utils.js";
@@ -6,9 +6,14 @@ import type {
   PullRequestClosedEvent,
   PullRequestLabeledEvent,
 } from "@octokit/webhooks-types";
-import ensureError from "ensure-error";
 import { compact } from "lodash-es";
+import { createModelProvider } from "./ai/provider.js";
 import type { AiConfig } from "./config.js";
+import { backportDestination } from "./destination.js";
+import type { DestinationResult } from "./domain.js";
+import { GitRepository } from "./git.js";
+import { GitHubGateway, type GitHubRequestClient } from "./github.js";
+import { GitBackportWorkspace } from "./workspace.js";
 
 const getBaseBranchFromLabel = (
   label: string,
@@ -64,6 +69,7 @@ const warnIfSquashIsNotTheOnlyAllowedMergeMethod = async ({
   const {
     data: { allow_merge_commit, allow_rebase_merge },
   } = await github.request("GET /repos/{owner}/{repo}", { owner, repo });
+
   // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
   if (allow_merge_commit || allow_rebase_merge) {
     warning(
@@ -77,106 +83,10 @@ const warnIfSquashIsNotTheOnlyAllowedMergeMethod = async ({
   }
 };
 
-const backportOnce = async ({
-  base,
-  body,
-  commitSha,
-  github,
-  head,
-  labels,
-  owner,
-  repo,
-  title,
-}: Readonly<{
-  base: string;
-  body: string;
-  commitSha: string;
-  github: InstanceType<typeof GitHub>;
-  head: string;
-  labels: readonly string[];
-  owner: string;
-  repo: string;
-  title: string;
-}>): Promise<number> => {
-  const git = async (...args: string[]) => {
-    await exec("git", args, { cwd: repo });
-  };
-
-  await git("switch", base);
-  await git("switch", "--create", head);
-  try {
-    await git("cherry-pick", "-x", commitSha);
-  } catch (error: unknown) {
-    await git("cherry-pick", "--abort");
-    throw error;
-  }
-
-  await git("push", "--set-upstream", "origin", head);
-  const {
-    data: { number },
-  } = await github.request("POST /repos/{owner}/{repo}/pulls", {
-    base,
-    body,
-    head,
-    owner,
-    repo,
-    title,
-  });
-  if (labels.length > 0) {
-    await github.request(
-      "PUT /repos/{owner}/{repo}/issues/{issue_number}/labels",
-      {
-        issue_number: number,
-        labels: [...labels],
-        owner,
-        repo,
-      },
-    );
-  }
-
-  info(`PR #${number} has been created.`);
-  return number;
-};
-
-const getFailedBackportCommentBody = ({
-  base,
-  commitSha,
-  errorMessage,
-  head,
-}: {
-  base: string;
-  commitSha: string;
-  errorMessage: string;
-  head: string;
-}) => {
-  const worktreePath = `.worktrees/backport-${base}`;
-  return [
-    `The backport to \`${base}\` failed:`,
-    "```",
-    errorMessage,
-    "```",
-    "To backport manually, run these commands in your terminal:",
-    "```bash",
-    "# Fetch latest updates from GitHub",
-    "git fetch",
-    "# Create a new working tree",
-    `git worktree add ${worktreePath} ${base}`,
-    "# Navigate to the new working tree",
-    `cd ${worktreePath}`,
-    "# Create a new branch",
-    `git switch --create ${head}`,
-    "# Cherry-pick the merged commit of this pull request and resolve the conflicts",
-    `git cherry-pick -x --mainline 1 ${commitSha}`,
-    "# Push it to GitHub",
-    `git push --set-upstream origin ${head}`,
-    "# Go back to the original working tree",
-    "cd ../..",
-    "# Delete the working tree",
-    `git worktree remove ${worktreePath}`,
-    "```",
-    `Then, create a pull request where the \`base\` branch is \`${base}\` and the \`compare\`/\`head\` branch is \`${head}\`.`,
-  ].join("\n");
-};
+type BackportResult = Readonly<{
+  createdPullRequests: Readonly<{ [base: string]: number }>;
+  destinations: readonly DestinationResult[];
+}>;
 
 const backport = async ({
   aiConfig,
@@ -219,7 +129,7 @@ const backport = async ({
   labelRegExp: RegExp;
   payload: PullRequestClosedEvent | PullRequestLabeledEvent;
   token: string;
-}): Promise<{ [base: string]: number }> => {
+}): Promise<BackportResult> => {
   const {
     pull_request: {
       body: originalBody,
@@ -236,7 +146,6 @@ const backport = async ({
   } = payload;
 
   if (merged !== true || !mergeCommitSha) {
-    // See https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request_target.
     throw new Error(
       "For security reasons, this action should only run on merged PRs.",
     );
@@ -246,12 +155,17 @@ const backport = async ({
 
   if (baseBranches.length === 0) {
     info("No backports required.");
-    return {};
+    return { createdPullRequests: {}, destinations: [] };
   }
 
-  const github = getOctokit(token);
+  const octokit = getOctokit(token);
+  await warnIfSquashIsNotTheOnlyAllowedMergeMethod({
+    github: octokit,
+    owner,
+    repo,
+  });
 
-  await warnIfSquashIsNotTheOnlyAllowedMergeMethod({ github, owner, repo });
+  info(`Backporting ${mergeCommitSha} from #${number}.`);
 
   if (aiConfig.enabled) {
     info(
@@ -259,22 +173,26 @@ const backport = async ({
     );
   }
 
-  info(`Backporting ${mergeCommitSha} from #${number}.`);
-
   const cloneUrl = new URL(payload.repository.clone_url);
   cloneUrl.username = "x-access-token";
   cloneUrl.password = token;
 
   await exec("git", ["clone", cloneUrl.toString()]);
-  await exec("git", [
-    "config",
-    "--global",
-    "user.email",
-    "github-actions[bot]@users.noreply.github.com",
-  ]);
-  await exec("git", ["config", "--global", "user.name", "github-actions[bot]"]);
 
-  const createdPullRequestBaseBranchToNumber: { [base: string]: number } = {};
+  const git = new GitRepository(repo);
+  await git.configureIdentity(
+    "github-actions[bot]",
+    "github-actions[bot]@users.noreply.github.com",
+  );
+  const workspace = new GitBackportWorkspace(git);
+  const requestClient: GitHubRequestClient = {
+    async request(route, parameters) {
+      const response = await octokit.request(route, parameters);
+      return { data: response.data };
+    },
+  };
+  const github = new GitHubGateway(requestClient);
+  const destinations: DestinationResult[] = [];
 
   for (const base of baseBranches) {
     const body = getBody({
@@ -292,45 +210,46 @@ const backport = async ({
     });
     const title = getTitle({ base, number, title: originalTitle });
 
-    // PRs are handled sequentially to avoid breaking GitHub's log grouping feature.
+    // Branches are handled sequentially to keep Git state isolated.
     // eslint-disable-next-line no-await-in-loop
-    await group(`Backporting to ${base} on ${head}.`, async () => {
-      try {
-        const backportPullRequestNumber = await backportOnce({
+    const destination = await group(
+      `Backporting to ${base} on ${head}.`,
+      async () =>
+        backportDestination({
+          aiConfig,
           base,
           body,
           commitSha: mergeCommitSha,
+          createProvider: createModelProvider,
           github,
           head,
           labels,
           owner,
           repo,
+          sourcePullRequestNumber: number,
           title,
-        });
-        createdPullRequestBaseBranchToNumber[base] = backportPullRequestNumber;
-      } catch (_error: unknown) {
-        const error = ensureError(_error);
-        logError(error);
+          workspace,
+        }),
+    );
+    destinations.push(destination);
 
-        await github.request(
-          "POST /repos/{owner}/{repo}/issues/{issue_number}/comments",
-          {
-            body: getFailedBackportCommentBody({
-              base,
-              commitSha: mergeCommitSha,
-              errorMessage: error.message,
-              head,
-            }),
-            issue_number: number,
-            owner,
-            repo,
-          },
-        );
-      }
-    });
+    if (destination.status === "created") {
+      info(`PR #${destination.pullRequestNumber} has been created.`);
+    }
   }
 
-  return createdPullRequestBaseBranchToNumber;
+  const createdPullRequests = Object.fromEntries(
+    destinations
+      .filter(
+        (
+          destination,
+        ): destination is Extract<DestinationResult, { status: "created" }> =>
+          destination.status === "created",
+      )
+      .map(({ base, pullRequestNumber }) => [base, pullRequestNumber]),
+  );
+
+  return { createdPullRequests, destinations };
 };
 
-export { backport };
+export { backport, type BackportResult };

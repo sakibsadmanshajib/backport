@@ -152,9 +152,29 @@ class GitRepository {
     await this.run(["add", "--", ...paths]);
   }
 
+  async switchBranch(branch: string): Promise<void> {
+    await this.run(["switch", branch]);
+  }
+
+  async createBranch(branch: string): Promise<void> {
+    await this.run(["switch", "--create", branch]);
+  }
+
+  async configureIdentity(name: string, email: string): Promise<void> {
+    await this.run(["config", "user.name", name]);
+    await this.run(["config", "user.email", email]);
+  }
+
+  async push(branch: string): Promise<void> {
+    await this.run(["push", "--set-upstream", "origin", branch]);
+  }
+
   async diffCheck(): Promise<boolean> {
-    const result = await this.run(["diff", "--check"], { allowFailure: true });
-    return result.exitCode === 0;
+    const [unstaged, staged] = await Promise.all([
+      this.run(["diff", "--check"], { allowFailure: true }),
+      this.run(["diff", "--cached", "--check"], { allowFailure: true }),
+    ]);
+    return unstaged.exitCode === 0 && staged.exitCode === 0;
   }
 
   async stagedPaths(): Promise<readonly string[]> {
@@ -166,6 +186,16 @@ class GitRepository {
       "HEAD",
     ]);
     return result.stdout.split("\0").filter((path) => path.length > 0);
+  }
+
+  async unstagedPaths(): Promise<readonly string[]> {
+    const result = await this.run(["diff", "--name-only", "-z"]);
+    return result.stdout.split("\0").filter((path) => path.length > 0);
+  }
+
+  async stagedDiff(): Promise<string> {
+    const result = await this.run(["diff", "--cached", "--binary", "HEAD"]);
+    return result.stdout;
   }
 
   async continueCherryPick(): Promise<void> {

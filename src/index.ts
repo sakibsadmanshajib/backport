@@ -50,7 +50,7 @@ const run = async () => {
       );
     }
 
-    const createdPullRequestBaseBranchToNumber = await backport({
+    const result = await backport({
       aiConfig,
       getBody,
       getHead,
@@ -62,8 +62,24 @@ const run = async () => {
     });
     setOutput(
       "created_pull_requests",
-      JSON.stringify(createdPullRequestBaseBranchToNumber),
+      JSON.stringify(result.createdPullRequests),
     );
+    const failures = result.destinations.filter(
+      (
+        destination,
+      ): destination is Extract<
+        (typeof result.destinations)[number],
+        { status: "failed" }
+      > => destination.status === "failed",
+    );
+
+    if (failures.length > 0) {
+      setFailed(
+        new Error(
+          failures.map(({ base, reason }) => `${base}: ${reason}`).join("\n"),
+        ),
+      );
+    }
   } catch (_error: unknown) {
     const error = ensureError(_error);
     setFailed(error);

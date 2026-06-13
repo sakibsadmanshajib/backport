@@ -1,0 +1,150 @@
+import { getExecOutput } from "@actions/exec";
+import type { ResolutionDecision } from "./ai/schema.js";
+import type { EnabledAiConfig } from "./config.js";
+import { collectConflictContext } from "./conflicts/context.js";
+import {
+  type ValidationResult,
+  validateResolutionCandidate,
+} from "./conflicts/policy.js";
+import {
+  type FindReusableSiblingInput,
+  type ReusedSiblingResolution,
+  findReusableSiblingResolution,
+} from "./conflicts/sibling-resolution.js";
+import type { ConflictContext } from "./conflicts/types.js";
+import type { CherryPickResult, GitRepository } from "./git.js";
+
+type ValidationRunner = (command: string, cwd: string) => Promise<number>;
+
+const defaultValidationRunner: ValidationRunner = async (command, cwd) => {
+  const result = await getExecOutput(command, [], {
+    cwd,
+    ignoreReturnCode: true,
+  });
+  return result.exitCode;
+};
+
+const runValidationCommands = async (
+  commands: readonly string[],
+  cwd: string,
+  runner: ValidationRunner,
+): Promise<string | undefined> => {
+  const [command, ...remaining] = commands;
+
+  if (!command) {
+    return;
+  }
+
+  const exitCode = await runner(command, cwd);
+
+  if (exitCode !== 0) {
+    return command;
+  }
+
+  return runValidationCommands(remaining, cwd, runner);
+};
+
+class GitBackportWorkspace {
+  readonly #git: GitRepository;
+  readonly #validationRunner: ValidationRunner;
+
+  constructor(
+    git: GitRepository,
+    validationRunner: ValidationRunner = defaultValidationRunner,
+  ) {
+    this.#git = git;
+    this.#validationRunner = validationRunner;
+  }
+
+  async prepare(base: string, head: string): Promise<void> {
+    await this.#git.switchBranch(base);
+    await this.#git.createBranch(head);
+  }
+
+  async tryCherryPick(sourceCommit: string): Promise<CherryPickResult> {
+    return this.#git.tryCherryPick(sourceCommit);
+  }
+
+  async collectContext(sourceCommit: string): Promise<ConflictContext> {
+    return collectConflictContext(this.#git, sourceCommit);
+  }
+
+  async findReusableSibling(
+    input: Omit<FindReusableSiblingInput, "repository">,
+  ): Promise<ReusedSiblingResolution | undefined> {
+    return findReusableSiblingResolution({
+      ...input,
+      repository: this.#git,
+    });
+  }
+
+  async applyAndValidate(
+    decision: ResolutionDecision,
+    context: ConflictContext,
+    config: EnabledAiConfig,
+  ): Promise<ValidationResult> {
+    for (const file of decision.files) {
+      // File writes are sequential to keep errors tied to the exact output path.
+      // eslint-disable-next-line no-await-in-loop
+      await this.#git.writeFile(file.path, file.content);
+    }
+
+    await this.#git.stage(decision.files.map(({ path }) => path));
+    const diffCheckPassed = await this.#git.diffCheck();
+    const stagedPaths = await this.#git.stagedPaths();
+    const omittedSourcePaths = context.sourceChangedPaths.filter(
+      (path) => !stagedPaths.includes(path),
+    );
+    const beforeUnstagedPaths = await this.#git.unstagedPaths();
+    const beforeStagedDiff = await this.#git.stagedDiff();
+    const failedCommand = await runValidationCommands(
+      config.validationCommands,
+      this.#git.path,
+      this.#validationRunner,
+    );
+
+    if (failedCommand) {
+      return {
+        reasons: [`Validation command failed: ${failedCommand}.`],
+        valid: false,
+      };
+    }
+
+    const afterUnstagedPaths = await this.#git.unstagedPaths();
+    const afterStagedDiff = await this.#git.stagedDiff();
+    const validationMutatedPaths = afterUnstagedPaths.filter(
+      (path) => !beforeUnstagedPaths.includes(path),
+    );
+
+    if (
+      afterStagedDiff !== beforeStagedDiff &&
+      validationMutatedPaths.length === 0
+    ) {
+      validationMutatedPaths.push(...(await this.#git.stagedPaths()));
+    }
+
+    return validateResolutionCandidate({
+      config,
+      context,
+      decision,
+      diffCheckPassed,
+      immutableChangedPaths: [],
+      omittedSourcePaths,
+      validationMutatedPaths,
+    });
+  }
+
+  async completeCherryPick(): Promise<void> {
+    await this.#git.continueCherryPick();
+  }
+
+  async abort(): Promise<void> {
+    await this.#git.abortCherryPick();
+  }
+
+  async push(head: string): Promise<void> {
+    await this.#git.push(head);
+  }
+}
+
+export { GitBackportWorkspace, type ValidationRunner };
