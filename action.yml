@@ -19,7 +19,7 @@ inputs:
     default: "[]"
   ai_immutable_patterns:
     description: >
-      JSON array of glob patterns for files that AI must never modify.
+      JSON array of additional glob patterns for files that AI must never modify.
     default: '["**/migrations/**","**/migration/**"]'
   ai_label:
     description: Label added to draft pull requests created after AI conflict resolution.

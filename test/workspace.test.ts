@@ -115,4 +115,16 @@ describe("GitBackportWorkspace", () => {
       valid: false,
     });
   });
+
+  it("runs configured compound commands in a non-interactive shell", async () => {
+    const { config, context, decision, git } = await setup();
+    const workspace = new GitBackportWorkspace(git);
+
+    await expect(
+      workspace.applyAndValidate(decision, context, {
+        ...config,
+        validationCommands: ["cd . && test -f status.ts"],
+      }),
+    ).resolves.toEqual({ valid: true });
+  });
 });

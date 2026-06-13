@@ -235,6 +235,11 @@ const backportDestination = async (
           status: "created",
         };
       }
+
+      return await fail(
+        "sibling resolution validation",
+        validation.reasons.join(" "),
+      );
     }
 
     const outcome = await resolveConflictWithAi({

@@ -1,3 +1,4 @@
+import { env } from "node:process";
 import { getExecOutput } from "@actions/exec";
 import type { ResolutionDecision } from "./ai/schema.js";
 import type { EnabledAiConfig } from "./config.js";
@@ -16,11 +17,25 @@ import type { CherryPickResult, GitRepository } from "./git.js";
 
 type ValidationRunner = (command: string, cwd: string) => Promise<number>;
 
+const validationEnvironment = (): { [name: string]: string } =>
+  Object.fromEntries(
+    Object.entries(env).filter(
+      (entry): entry is [string, string] =>
+        entry[1] !== undefined &&
+        !["INPUT_AI_API_KEY", "INPUT_GITHUB_TOKEN"].includes(entry[0]),
+    ),
+  );
+
 const defaultValidationRunner: ValidationRunner = async (command, cwd) => {
-  const result = await getExecOutput(command, [], {
-    cwd,
-    ignoreReturnCode: true,
-  });
+  const result = await getExecOutput(
+    "bash",
+    ["--noprofile", "--norc", "-o", "pipefail", "-c", command],
+    {
+      cwd,
+      env: validationEnvironment(),
+      ignoreReturnCode: true,
+    },
+  );
   return result.exitCode;
 };
 

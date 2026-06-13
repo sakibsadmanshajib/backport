@@ -101,6 +101,15 @@ describe("evaluateConflictEligibility", () => {
     });
   });
 
+  it("keeps migration conflicts forbidden when custom immutable patterns are empty", () => {
+    expect(
+      evaluateConflictEligibility(
+        context("data/migrations/20260101-add-setting.ts"),
+        { ...config, immutablePatterns: [] },
+      ),
+    ).toMatchObject({ eligible: false });
+  });
+
   it("rejects tenancy hook changes", () => {
     expect(
       evaluateConflictEligibility(

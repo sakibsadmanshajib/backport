@@ -295,4 +295,38 @@ describe("backportDestination", () => {
     expect(work.calls).toContain("abort");
     expect(work.calls).not.toContain("push");
   });
+
+  it("escalates when a reused sibling resolution fails validation", async () => {
+    const work = workspace({ status: "conflicted" });
+    let providerCreated = false;
+    work.findReusableSibling = async () => ({
+      decision: resolution,
+      evidence: {
+        patchId: "patch-id",
+        pullRequestNumber: 41,
+      },
+    });
+    work.applyAndValidate = async () => ({
+      reasons: ["Validation commands modified files: status.ts."],
+      valid: false,
+    });
+
+    const result = await backportDestination(
+      input({
+        createProvider() {
+          providerCreated = true;
+          return modelProvider([resolution, approval]);
+        },
+        workspace: work,
+      }),
+    );
+
+    expect(result).toMatchObject({
+      reason: "Validation commands modified files: status.ts.",
+      status: "failed",
+    });
+    expect(providerCreated).toBe(false);
+    expect(work.calls).toContain("abort");
+    expect(work.calls).not.toContain("push");
+  });
 });

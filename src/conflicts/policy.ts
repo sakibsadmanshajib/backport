@@ -4,6 +4,11 @@ import type { ResolutionDecision } from "../ai/schema.js";
 import type { EnabledAiConfig } from "../config.js";
 import type { ConflictContext, ConflictFile } from "./types.js";
 
+const builtInImmutablePatterns = [
+  "**/migrations/**",
+  "**/migration/**",
+] as const;
+
 const builtInForbiddenPatterns = [
   "**/package.json",
   "**/package-lock.json",
@@ -48,6 +53,7 @@ const matchesAny = (path: string, patterns: readonly string[]): boolean =>
 
 const isProtectedPath = (path: string, config: EnabledAiConfig): boolean =>
   matchesAny(path, [
+    ...builtInImmutablePatterns,
     ...config.immutablePatterns,
     ...builtInForbiddenPatterns,
     ...config.forbiddenPatterns,
@@ -59,7 +65,12 @@ const fileEligibilityReasons = (
 ): readonly string[] => {
   const reasons: string[] = [];
 
-  if (matchesAny(file.path, config.immutablePatterns)) {
+  if (
+    matchesAny(file.path, [
+      ...builtInImmutablePatterns,
+      ...config.immutablePatterns,
+    ])
+  ) {
     reasons.push(`Immutable file is conflicted: ${file.path}.`);
   }
 
@@ -227,6 +238,7 @@ const validateResolutionCandidate = ({
 
 export {
   builtInForbiddenPatterns,
+  builtInImmutablePatterns,
   evaluateConflictEligibility,
   isProtectedPath,
   validateResolutionCandidate,
