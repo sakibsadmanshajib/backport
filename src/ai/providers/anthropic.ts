@@ -2,7 +2,6 @@ import { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
 import { Anthropic } from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod.mjs";
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
-import type { ClientOptions as AnthropicVertexClientOptions } from "@anthropic-ai/vertex-sdk/client.mjs";
 import { GoogleAuth } from "google-auth-library";
 import type { z } from "zod";
 import type {
@@ -75,11 +74,15 @@ type VertexAuth = Readonly<{
 const normalizeResponse = (response: {
   parsed_output?: unknown;
   stop_details?: unknown;
-  stop_reason?: string | undefined;
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  stop_reason?: string | null;
   usage: {
-    cache_creation_input_tokens?: number | undefined;
-    cache_read_input_tokens?: number | undefined;
-    input_tokens?: number | undefined;
+    // eslint-disable-next-line @typescript-eslint/ban-types
+    cache_creation_input_tokens?: number | null;
+    // eslint-disable-next-line @typescript-eslint/ban-types
+    cache_read_input_tokens?: number | null;
+    // eslint-disable-next-line @typescript-eslint/ban-types
+    input_tokens?: number | null;
     output_tokens: number;
   };
 }): AnthropicResponse => ({
@@ -100,15 +103,11 @@ const wrapClient = (
   parse: (
     parameters: AnthropicParseParameters,
     options?: { timeout?: number },
-  ) => Promise<unknown>,
+  ) => Promise<Parameters<typeof normalizeResponse>[0]>,
 ): AnthropicClient => ({
   messages: {
     async parse(parameters, options) {
-      return normalizeResponse(
-        (await parse(parameters, options)) as Parameters<
-          typeof normalizeResponse
-        >[0],
-      );
+      return normalizeResponse(await parse(parameters, options));
     },
   },
 });
@@ -167,7 +166,7 @@ const vertexClientFactory =
                 [key: string]: unknown;
               },
               scopes: "https://www.googleapis.com/auth/cloud-platform",
-            }) as unknown as AnthropicVertexClientOptions["googleAuth"],
+            }),
           }
         : {}),
       ...options,

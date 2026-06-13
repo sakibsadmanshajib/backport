@@ -118,6 +118,21 @@ describe("readAiConfig", () => {
     },
   );
 
+  it("rejects invalid JSON for ai_gcp_service_account_json", () => {
+    expect(() =>
+      readAiConfig(
+        inputReader({
+          ...enabledInputs,
+          ai_api_key: "",
+          ai_gcp_project: "demo-project",
+          ai_gcp_region: "us-central1",
+          ai_gcp_service_account_json: "{not-json",
+          ai_provider: "anthropic-vertex",
+        }),
+      ),
+    ).toThrow("ai_gcp_service_account_json");
+  });
+
   it("requires ai_base_url for an anthropic-compatible provider", () => {
     expect(() =>
       readAiConfig(

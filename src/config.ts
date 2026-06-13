@@ -192,7 +192,19 @@ const readAiConfig = (reader: InputReader): AiConfig => {
   const awsSessionToken = optional("ai_aws_session_token");
   const gcpProject = optional("ai_gcp_project");
   const gcpRegion = optional("ai_gcp_region");
-  const gcpServiceAccountJson = optional("ai_gcp_service_account_json");
+  const gcpServiceAccountJsonRaw = optional("ai_gcp_service_account_json");
+
+  if (gcpServiceAccountJsonRaw !== undefined) {
+    try {
+      JSON.parse(gcpServiceAccountJsonRaw);
+    } catch {
+      throw new Error(
+        'Input "ai_gcp_service_account_json" must be valid JSON.',
+      );
+    }
+  }
+
+  const gcpServiceAccountJson = gcpServiceAccountJsonRaw;
 
   return {
     apiKey: keyBasedProviders.has(provider)
