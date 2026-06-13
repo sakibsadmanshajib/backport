@@ -52,8 +52,8 @@ const createModelProvider = (
         }),
         model: config.model,
         secrets: [config.awsSecretAccessKey, config.awsSessionToken].filter(
-          (secret): secret is string => Boolean(secret),
-        ),
+          Boolean,
+        ) as string[],
       });
     }
 

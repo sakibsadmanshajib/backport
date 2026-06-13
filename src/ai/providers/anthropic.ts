@@ -1,9 +1,9 @@
+import { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
 import { Anthropic } from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod.mjs";
-import { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
+import type { ClientOptions as AnthropicVertexClientOptions } from "@anthropic-ai/vertex-sdk/client.mjs";
 import { GoogleAuth } from "google-auth-library";
-import type { ClientOptions as AnthropicVertexClientOptions } from "@anthropic-ai/vertex-sdk/client";
 import type { z } from "zod";
 import type {
   ModelResult,
@@ -75,11 +75,11 @@ type VertexAuth = Readonly<{
 const normalizeResponse = (response: {
   parsed_output?: unknown;
   stop_details?: unknown;
-  stop_reason?: string | null;
+  stop_reason?: string | undefined;
   usage: {
-    cache_creation_input_tokens?: number | null;
-    cache_read_input_tokens?: number | null;
-    input_tokens?: number | null;
+    cache_creation_input_tokens?: number | undefined;
+    cache_read_input_tokens?: number | undefined;
+    input_tokens?: number | undefined;
     output_tokens: number;
   };
 }): AnthropicResponse => ({
@@ -100,11 +100,15 @@ const wrapClient = (
   parse: (
     parameters: AnthropicParseParameters,
     options?: { timeout?: number },
-  ) => Promise<Parameters<typeof normalizeResponse>[0]>,
+  ) => Promise<unknown>,
 ): AnthropicClient => ({
   messages: {
     async parse(parameters, options) {
-      return normalizeResponse(await parse(parameters, options));
+      return normalizeResponse(
+        (await parse(parameters, options)) as Parameters<
+          typeof normalizeResponse
+        >[0],
+      );
     },
   },
 });
@@ -136,16 +140,11 @@ const bedrockClientFactory =
       awsRegion: auth.region,
       ...(hasExplicitKeys
         ? {
-            providerChainResolver: () =>
-              Promise.resolve(() =>
-                Promise.resolve({
-                  accessKeyId: auth.accessKeyId!,
-                  secretAccessKey: auth.secretAccessKey!,
-                  ...(auth.sessionToken
-                    ? { sessionToken: auth.sessionToken }
-                    : {}),
-                }),
-              ),
+            providerChainResolver: async () => async () => ({
+              accessKeyId: auth.accessKeyId!,
+              secretAccessKey: auth.secretAccessKey!,
+              ...(auth.sessionToken ? { sessionToken: auth.sessionToken } : {}),
+            }),
           }
         : {}),
       ...options,
@@ -164,10 +163,9 @@ const vertexClientFactory =
       ...(auth.serviceAccountJson
         ? {
             googleAuth: new GoogleAuth({
-              credentials: JSON.parse(auth.serviceAccountJson) as Record<
-                string,
-                unknown
-              >,
+              credentials: JSON.parse(auth.serviceAccountJson) as {
+                [key: string]: unknown;
+              },
               scopes: "https://www.googleapis.com/auth/cloud-platform",
             }) as unknown as AnthropicVertexClientOptions["googleAuth"],
           }
@@ -184,14 +182,14 @@ class AnthropicFamilyProvider implements StructuredModelProvider {
   readonly #model: string;
   readonly #secrets: readonly string[];
 
-  constructor(params: {
+  constructor(parameters: {
     clientFactory: AnthropicClientFactory;
     model: string;
     secrets: readonly string[];
   }) {
-    this.#clientFactory = params.clientFactory;
-    this.#model = params.model;
-    this.#secrets = params.secrets;
+    this.#clientFactory = parameters.clientFactory;
+    this.#model = parameters.model;
+    this.#secrets = parameters.secrets;
   }
 
   async generate<TSchema extends z.ZodTypeAny>(

@@ -1,11 +1,15 @@
 import { appendFile } from "node:fs/promises";
+import { env } from "node:process";
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { afterEach, describe, expect, it } from "vitest";
 import type { ResolutionDecision } from "../src/ai/schema.js";
 import type { EnabledAiConfig } from "../src/config.js";
 import { collectConflictContext } from "../src/conflicts/context.js";
 import { GitRepository } from "../src/git.js";
-import { GitBackportWorkspace, validationEnvironment } from "../src/workspace.js";
+import {
+  GitBackportWorkspace,
+  validationEnvironment,
+} from "../src/workspace.js";
 import { TestGitRepository } from "./helpers/git-repository.js";
 
 const repositories: TestGitRepository[] = [];
@@ -130,17 +134,21 @@ describe("GitBackportWorkspace", () => {
 });
 
 describe("validationEnvironment", () => {
-  const withEnv = <T,>(overrides: Record<string, string>, run: () => T): T => {
-    const saved = { ...process.env };
-    Object.assign(process.env, overrides);
+  const withEnv = <T>(
+    overrides: { [key: string]: string },
+    run: () => T,
+  ): T => {
+    const saved: { [key: string]: string | undefined } = { ...env };
+    Object.assign(env, overrides);
     try {
       return run();
     } finally {
       for (const key of Object.keys(overrides)) {
-        delete process.env[key];
+        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+        delete env[key];
       }
 
-      Object.assign(process.env, saved);
+      Object.assign(env, saved);
     }
   };
 

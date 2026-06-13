@@ -2,8 +2,8 @@
 import { describe, expect, it } from "vitest";
 import {
   type AnthropicClient,
-  type AnthropicRequestOptions,
   AnthropicFamilyProvider,
+  type AnthropicRequestOptions,
 } from "../../../src/ai/providers/anthropic.js";
 import { structuredRequest } from "../../helpers/fakes.js";
 
@@ -25,7 +25,7 @@ const familyProvider = (
   secrets: readonly string[] = ["anthropic-secret"],
 ): AnthropicFamilyProvider =>
   new AnthropicFamilyProvider({
-    clientFactory: (options) => {
+    clientFactory(options) {
       capture?.(options);
       return client;
     },
