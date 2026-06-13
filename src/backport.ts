@@ -8,6 +8,7 @@ import type {
 } from "@octokit/webhooks-types";
 import ensureError from "ensure-error";
 import { compact } from "lodash-es";
+import type { AiConfig } from "./config.js";
 
 const getBaseBranchFromLabel = (
   label: string,
@@ -178,6 +179,7 @@ const getFailedBackportCommentBody = ({
 };
 
 const backport = async ({
+  aiConfig,
   getBody,
   getHead,
   getLabels,
@@ -186,6 +188,7 @@ const backport = async ({
   payload,
   token,
 }: {
+  aiConfig: AiConfig;
   getBody: (
     props: Readonly<{
       base: string;
@@ -249,6 +252,12 @@ const backport = async ({
   const github = getOctokit(token);
 
   await warnIfSquashIsNotTheOnlyAllowedMergeMethod({ github, owner, repo });
+
+  if (aiConfig.enabled) {
+    info(
+      `AI conflict fallback enabled with ${aiConfig.provider}/${aiConfig.model}.`,
+    );
+  }
 
   info(`Backporting ${mergeCommitSha} from #${number}.`);
 

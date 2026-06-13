@@ -3,6 +3,47 @@ author: Thibault Derousseaux <tibdex@gmail.com>
 description: >
   Automatically backport PRs to other branches by simply labeling them.
 inputs:
+  ai_api_key:
+    description: >
+      API key for the selected AI provider. Required when ai_enabled is true.
+  ai_base_url:
+    description: >
+      Base URL for an OpenAI-compatible endpoint. Required only when ai_provider is openai-compatible.
+  ai_enabled:
+    description: >
+      Whether to attempt a constrained AI conflict resolution after a normal backport fails.
+    default: "false"
+  ai_forbidden_patterns:
+    description: >
+      JSON array of additional repository-specific glob patterns that AI must never modify.
+    default: "[]"
+  ai_immutable_patterns:
+    description: >
+      JSON array of glob patterns for files that AI must never modify.
+    default: '["**/migrations/**","**/migration/**"]'
+  ai_label:
+    description: Label added to draft pull requests created after AI conflict resolution.
+    default: AI backport
+  ai_max_conflicted_files:
+    description: Maximum number of conflicted files eligible for AI resolution.
+    default: "3"
+  ai_max_resolution_lines:
+    description: Maximum number of adapted lines eligible for AI resolution.
+    default: "60"
+  ai_model:
+    description: >
+      Model identifier for the selected provider. Required when ai_enabled is true.
+  ai_provider:
+    description: >
+      AI provider. Supported values are anthropic, openai, and openai-compatible.
+    default: anthropic
+  ai_timeout_seconds:
+    description: Timeout in seconds for each model request.
+    default: "120"
+  ai_validation_commands:
+    description: >
+      Non-empty JSON array of repository validation commands. Required when ai_enabled is true.
+    default: "[]"
   body_template:
     description: >
       Lodash template for the backport PR's body.

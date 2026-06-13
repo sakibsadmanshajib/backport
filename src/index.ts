@@ -4,9 +4,13 @@ import type { PullRequestEvent } from "@octokit/webhooks-types";
 import ensureError from "ensure-error";
 import { template } from "lodash-es";
 import { backport } from "./backport.js";
+import { readAiConfig } from "./config.js";
 
 const run = async () => {
   try {
+    const aiConfig = readAiConfig({
+      get: (name, options) => getInput(name, options),
+    });
     const [getBody, getHead, _getLabels, getTitle] = [
       "body_template",
       "head_template",
@@ -47,6 +51,7 @@ const run = async () => {
     }
 
     const createdPullRequestBaseBranchToNumber = await backport({
+      aiConfig,
       getBody,
       getHead,
       getLabels,
