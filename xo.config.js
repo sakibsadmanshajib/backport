@@ -3,8 +3,8 @@ import sortDestructureKeys from "eslint-plugin-sort-destructure-keys";
 
 // NOTE: eslint-plugin-typescript-sort-keys@3 uses the removed context.getSourceCode()
 // API and is incompatible with ESLint 9 (xo v2). Re-enable once an ESLint-9-compatible
-// release is available. Tracked rules: typescript-sort-keys/interface,
-// typescript-sort-keys/string-enum.
+// release is available. Tracked known regression: ESLint 9 removed context.getSourceCode().
+// Tracked rules: typescript-sort-keys/interface, typescript-sort-keys/string-enum.
 
 /** @type {import('xo').FlatXoConfig} */
 export default [
@@ -42,6 +42,12 @@ export default [
       "func-style": ["error", "expression", { allowArrowFunctions: true }],
       // Import/no-extraneous-dependencies was replaced by import-x in xo v2.
       "import/no-extraneous-dependencies": "off",
+      // Prevent production source files from importing devDependencies (e.g. vitest, xo).
+      // The test/** and scripts/** override below sets this to "off" so devDep imports there are allowed.
+      "import-x/no-extraneous-dependencies": [
+        "error",
+        { devDependencies: false },
+      ],
       // Already taken care of by TypeScript.
       "import-x/namespace": "off",
       // Named exports are better for static analysis.

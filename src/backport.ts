@@ -66,9 +66,11 @@ const warnIfSquashIsNotTheOnlyAllowedMergeMethod = async ({
       route: string,
       parameters: { [key: string]: unknown },
     ) => Promise<{
+      // Fields from the GitHub REST GET /repos/{owner}/{repo} response.
       data: {
         allow_merge_commit?: boolean | null;
         allow_rebase_merge?: boolean | null;
+        allow_squash_merge?: boolean | null;
       };
     }>;
   };
