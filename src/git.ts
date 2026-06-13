@@ -154,11 +154,11 @@ class GitRepository {
   }
 
   async switchBranch(branch: string): Promise<void> {
-    await this.run(["switch", branch]);
+    await this.run(["switch", "--", branch]);
   }
 
   async createBranch(branch: string): Promise<void> {
-    await this.run(["switch", "--create", branch]);
+    await this.run(["switch", "--create", "--", branch]);
   }
 
   async configureIdentity(name: string, email: string): Promise<void> {
@@ -167,7 +167,7 @@ class GitRepository {
   }
 
   async push(branch: string): Promise<void> {
-    await this.run(["push", "--set-upstream", "origin", branch]);
+    await this.run(["push", "--set-upstream", "origin", "--", branch]);
   }
 
   async diffCheck(): Promise<boolean> {

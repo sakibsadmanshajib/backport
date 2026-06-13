@@ -243,3 +243,8 @@ The existing body, title, head, and label templates remain supported through
 - AI pull requests are always drafts and are never auto-merged.
 - Any failed destination branch makes the workflow fail after all requested
   destinations have been processed.
+
+**IMPORTANT: Workflows MUST use the `pull_request` event, not `pull_request_target`.** Using
+`pull_request_target` with fork pull requests grants the action write permissions and access
+to repository secrets in the context of untrusted fork code, which is a privilege-escalation
+risk. The action enforces this at runtime and will reject any other event type.
