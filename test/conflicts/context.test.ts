@@ -87,4 +87,20 @@ describe("collectConflictContext", () => {
       /^[0-9a-f]{40}$/u,
     );
   });
+
+  it("applies an allowlisted resolution and completes the cherry-pick", async () => {
+    const { git } = await createEnumConflict();
+    const resolved =
+      "export enum Status {\n  Pending,\n  Archived,\n  Active,\n}\n";
+
+    await git.writeFile("status.ts", resolved);
+    await git.stage(["status.ts"]);
+
+    await expect(git.diffCheck()).resolves.toBe(true);
+    await expect(git.stagedPaths()).resolves.toEqual(["status.ts"]);
+    await git.continueCherryPick();
+    await expect(git.output(["show", "HEAD:status.ts"])).resolves.toBe(
+      resolved.trim(),
+    );
+  });
 });

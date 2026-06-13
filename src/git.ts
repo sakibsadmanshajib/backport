@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, resolve, sep } from "node:path";
 import { getExecOutput } from "@actions/exec";
 
 type GitCommandResult = Readonly<{
@@ -133,6 +134,46 @@ class GitRepository {
 
   async readWorkingTreeFile(path: string): Promise<string> {
     return readFile(`${this.#path}/${path}`, "utf8");
+  }
+
+  async writeFile(path: string, content: string): Promise<void> {
+    const absolutePath = resolve(this.#path, path);
+    const repositoryPrefix = `${resolve(this.#path)}${sep}`;
+
+    if (!absolutePath.startsWith(repositoryPrefix)) {
+      throw new Error(`Refusing to write outside the repository: ${path}.`);
+    }
+
+    await mkdir(dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, content, "utf8");
+  }
+
+  async stage(paths: readonly string[]): Promise<void> {
+    await this.run(["add", "--", ...paths]);
+  }
+
+  async diffCheck(): Promise<boolean> {
+    const result = await this.run(["diff", "--check"], { allowFailure: true });
+    return result.exitCode === 0;
+  }
+
+  async stagedPaths(): Promise<readonly string[]> {
+    const result = await this.run([
+      "diff",
+      "--cached",
+      "--name-only",
+      "-z",
+      "HEAD",
+    ]);
+    return result.stdout.split("\0").filter((path) => path.length > 0);
+  }
+
+  async continueCherryPick(): Promise<void> {
+    await this.run(["cherry-pick", "--continue"]);
+  }
+
+  async abortCherryPick(): Promise<void> {
+    await this.run(["cherry-pick", "--abort"], { allowFailure: true });
   }
 
   async stablePatchId(commitSha: string): Promise<string> {
