@@ -8,7 +8,19 @@ inputs:
       API key for the selected AI provider. Required when ai_enabled is true.
   ai_base_url:
     description: >
-      Base URL for an OpenAI-compatible endpoint. Required only when ai_provider is openai-compatible.
+      Base URL for an OpenAI-compatible or Anthropic-compatible endpoint. Required when ai_provider is openai-compatible or anthropic-compatible.
+  ai_aws_access_key_id:
+    description: >
+      Explicit AWS access key id for anthropic-bedrock. Optional; falls back to the AWS credential chain.
+  ai_aws_region:
+    description: >
+      AWS region for anthropic-bedrock. Required when ai_provider is anthropic-bedrock.
+  ai_aws_secret_access_key:
+    description: >
+      Explicit AWS secret access key for anthropic-bedrock. Optional; falls back to the AWS credential chain.
+  ai_aws_session_token:
+    description: >
+      Explicit AWS session token for anthropic-bedrock. Optional.
   ai_enabled:
     description: >
       Whether to attempt a constrained AI conflict resolution after a normal backport fails.
@@ -17,6 +29,15 @@ inputs:
     description: >
       JSON array of additional repository-specific glob patterns that AI must never modify.
     default: "[]"
+  ai_gcp_project:
+    description: >
+      GCP project id for anthropic-vertex. Required when ai_provider is anthropic-vertex.
+  ai_gcp_region:
+    description: >
+      GCP region for anthropic-vertex. Required when ai_provider is anthropic-vertex.
+  ai_gcp_service_account_json:
+    description: >
+      Explicit GCP service-account JSON for anthropic-vertex. Optional; falls back to Application Default Credentials.
   ai_immutable_patterns:
     description: >
       JSON array of additional glob patterns for files that AI must never modify.
@@ -35,7 +56,7 @@ inputs:
       Model identifier for the selected provider. Required when ai_enabled is true.
   ai_provider:
     description: >
-      AI provider. Supported values are anthropic, openai, and openai-compatible.
+      AI provider. Supported values are anthropic, anthropic-bedrock, anthropic-vertex, anthropic-compatible, openai, and openai-compatible.
     default: anthropic
   ai_timeout_seconds:
     description: Timeout in seconds for each model request.
