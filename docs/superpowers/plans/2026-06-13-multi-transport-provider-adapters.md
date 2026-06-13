@@ -1235,7 +1235,7 @@ Then add a new top-level `describe` block after the existing one (after line 130
 
 ```ts
 describe("validationEnvironment", () => {
-  const withEnv = <T,>(overrides: Record<string, string>, run: () => T): T => {
+  const withEnv = <T>(overrides: Record<string, string>, run: () => T): T => {
     const saved = { ...process.env };
     Object.assign(process.env, overrides);
     try {
