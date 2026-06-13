@@ -18,6 +18,7 @@ type ConflictContext = Readonly<{
   destinationHead: string;
   files: readonly ConflictFile[];
   mergeBase: string;
+  sourceChangedPaths: readonly string[];
   sourceCommit: string;
   sourceDiff: string;
   sourceParent: string;

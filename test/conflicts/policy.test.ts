@@ -51,6 +51,7 @@ const context = (
     },
   ],
   mergeBase: "base",
+  sourceChangedPaths: [path],
   sourceCommit: "source",
   sourceDiff: "+  Active,",
   sourceParent: "parent",

@@ -46,6 +46,13 @@ const matchesAny = (path: string, patterns: readonly string[]): boolean =>
     minimatch(path.replaceAll("\\", "/"), pattern, { dot: true }),
   );
 
+const isProtectedPath = (path: string, config: EnabledAiConfig): boolean =>
+  matchesAny(path, [
+    ...config.immutablePatterns,
+    ...builtInForbiddenPatterns,
+    ...config.forbiddenPatterns,
+  ]);
+
 const fileEligibilityReasons = (
   file: ConflictFile,
   config: EnabledAiConfig,
@@ -165,13 +172,7 @@ const validateResolutionCandidate = ({
       continue;
     }
 
-    if (
-      matchesAny(output.path, [
-        ...config.immutablePatterns,
-        ...builtInForbiddenPatterns,
-        ...config.forbiddenPatterns,
-      ])
-    ) {
+    if (isProtectedPath(output.path, config)) {
       reasons.push(`Resolution modified a forbidden file: ${output.path}.`);
     }
 
@@ -227,6 +228,7 @@ const validateResolutionCandidate = ({
 export {
   builtInForbiddenPatterns,
   evaluateConflictEligibility,
+  isProtectedPath,
   validateResolutionCandidate,
   type EligibilityResult,
   type ResolutionValidationInput,

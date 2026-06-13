@@ -52,6 +52,7 @@ describe("collectConflictContext", () => {
       sourceParent: commonCommit,
     });
     expect(context.sourceDiff).toContain("+  Active,");
+    expect(context.sourceChangedPaths).toEqual(["status.ts"]);
     expect(context.files).toHaveLength(1);
     expect(context.files[0]).toMatchObject({
       base: "export enum Status {\n  Pending,\n}\n",
@@ -77,5 +78,13 @@ describe("collectConflictContext", () => {
     );
     expect(file?.history).toContain("add archived status");
     expect(file?.blame).toContain("status.ts");
+  });
+
+  it("computes Git stable patch IDs", async () => {
+    const { git, sourceCommit } = await createEnumConflict();
+
+    await expect(git.stablePatchId(sourceCommit)).resolves.toMatch(
+      /^[0-9a-f]{40}$/u,
+    );
   });
 });

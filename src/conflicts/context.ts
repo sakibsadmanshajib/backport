@@ -94,6 +94,16 @@ const collectConflictContext = async (
     sourceCommit,
   ]);
   const sourceDiff = sourceDiffResult.stdout;
+  const sourceChangedPathsOutput = await git.output([
+    "diff-tree",
+    "--no-commit-id",
+    "--name-only",
+    "-r",
+    sourceCommit,
+  ]);
+  const sourceChangedPaths = sourceChangedPathsOutput
+    .split("\n")
+    .filter((path) => path.length > 0);
   const paths = await git.listUnmergedPaths();
   const files = await Promise.all(
     paths.map(async (path) => collectConflictFile(git, path)),
@@ -103,6 +113,7 @@ const collectConflictContext = async (
     destinationHead,
     files,
     mergeBase,
+    sourceChangedPaths,
     sourceCommit,
     sourceDiff,
     sourceParent,
