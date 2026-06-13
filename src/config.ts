@@ -135,28 +135,11 @@ const parseStringArray = ({
   }
 };
 
-const readAiConfig = (reader: InputReader): AiConfig => {
-  if (!parseEnabled(reader.get("ai_enabled"))) {
-    return { enabled: false };
-  }
-
-  const providerInput = getRequiredInput(reader, "ai_provider");
-  const providerResult = aiProviderSchema.safeParse(providerInput);
-
-  if (!providerResult.success) {
-    throw new Error(
-      'Input "ai_provider" must be one of "anthropic", "anthropic-bedrock", "anthropic-compatible", "anthropic-vertex", "openai", or "openai-compatible".',
-    );
-  }
-
-  const provider = providerResult.data;
-  const optional = (name: string): string | undefined => {
-    const value = reader.get(name).trim();
-    return value.length > 0 ? value : undefined;
-  };
-
-  const baseUrl = reader.get("ai_base_url").trim();
-
+const assertProviderInputs = (
+  provider: AiProviderName,
+  baseUrl: string,
+  optional: (name: string) => string | undefined,
+): void => {
   if (baseUrlProviders.has(provider) && baseUrl.length === 0) {
     throw new Error(
       `Input "ai_base_url" is required for the ${provider} provider.`,
@@ -185,6 +168,31 @@ const readAiConfig = (reader: InputReader): AiConfig => {
       );
     }
   }
+};
+
+const readAiConfig = (reader: InputReader): AiConfig => {
+  if (!parseEnabled(reader.get("ai_enabled"))) {
+    return { enabled: false };
+  }
+
+  const providerInput = getRequiredInput(reader, "ai_provider");
+  const providerResult = aiProviderSchema.safeParse(providerInput);
+
+  if (!providerResult.success) {
+    throw new Error(
+      'Input "ai_provider" must be one of "anthropic", "anthropic-bedrock", "anthropic-compatible", "anthropic-vertex", "openai", or "openai-compatible".',
+    );
+  }
+
+  const provider = providerResult.data;
+  const optional = (name: string): string | undefined => {
+    const value = reader.get(name).trim();
+    return value.length > 0 ? value : undefined;
+  };
+
+  const baseUrl = reader.get("ai_base_url").trim();
+
+  assertProviderInputs(provider, baseUrl, optional);
 
   const awsAccessKeyId = optional("ai_aws_access_key_id");
   const awsRegion = optional("ai_aws_region");
