@@ -1,5 +1,11 @@
 # AI-Assisted Backport Implementation Plan
 
+> **Status: HISTORICAL (completed).** This plan has been fully implemented and
+> merged into the branch history. The unchecked checkboxes below were never
+> ticked during execution and are retained only as a record of the original
+> task breakdown. Git history and the passing test suite are the source of
+> truth for what shipped, not these boxes. See `HANDOFF.md` for current state.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add provider-neutral, policy-constrained AI conflict resolution to the
