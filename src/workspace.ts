@@ -17,12 +17,23 @@ import type { CherryPickResult, GitRepository } from "./git.js";
 
 type ValidationRunner = (command: string, cwd: string) => Promise<number>;
 
+const STRIPPED_VALIDATION_ENV_NAMES = new Set([
+  "GOOGLE_APPLICATION_CREDENTIALS",
+  "INPUT_AI_API_KEY",
+  "INPUT_AI_GCP_SERVICE_ACCOUNT_JSON",
+  "INPUT_GITHUB_TOKEN",
+]);
+
+const isStrippedValidationEnvName = (name: string): boolean =>
+  STRIPPED_VALIDATION_ENV_NAMES.has(name) ||
+  name.startsWith("AWS_") ||
+  name.startsWith("INPUT_AI_AWS_");
+
 const validationEnvironment = (): { [name: string]: string } =>
   Object.fromEntries(
     Object.entries(env).filter(
       (entry): entry is [string, string] =>
-        entry[1] !== undefined &&
-        !["INPUT_AI_API_KEY", "INPUT_GITHUB_TOKEN"].includes(entry[0]),
+        entry[1] !== undefined && !isStrippedValidationEnvName(entry[0]),
     ),
   );
 
@@ -162,4 +173,4 @@ class GitBackportWorkspace {
   }
 }
 
-export { GitBackportWorkspace, type ValidationRunner };
+export { GitBackportWorkspace, validationEnvironment, type ValidationRunner };

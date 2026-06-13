@@ -5,7 +5,7 @@ import type { ResolutionDecision } from "../src/ai/schema.js";
 import type { EnabledAiConfig } from "../src/config.js";
 import { collectConflictContext } from "../src/conflicts/context.js";
 import { GitRepository } from "../src/git.js";
-import { GitBackportWorkspace } from "../src/workspace.js";
+import { GitBackportWorkspace, validationEnvironment } from "../src/workspace.js";
 import { TestGitRepository } from "./helpers/git-repository.js";
 
 const repositories: TestGitRepository[] = [];
@@ -126,5 +126,44 @@ describe("GitBackportWorkspace", () => {
         validationCommands: ["cd . && test -f status.ts"],
       }),
     ).resolves.toEqual({ valid: true });
+  });
+});
+
+describe("validationEnvironment", () => {
+  const withEnv = <T,>(overrides: Record<string, string>, run: () => T): T => {
+    const saved = { ...process.env };
+    Object.assign(process.env, overrides);
+    try {
+      return run();
+    } finally {
+      for (const key of Object.keys(overrides)) {
+        delete process.env[key];
+      }
+
+      Object.assign(process.env, saved);
+    }
+  };
+
+  it("strips model credentials and ambient cloud variables", () => {
+    const result = withEnv(
+      {
+        AWS_SECRET_ACCESS_KEY: "aws-secret",
+        GOOGLE_APPLICATION_CREDENTIALS: "/tmp/sa.json",
+        INPUT_AI_API_KEY: "bearer",
+        INPUT_AI_AWS_SECRET_ACCESS_KEY: "input-aws-secret",
+        INPUT_AI_GCP_SERVICE_ACCOUNT_JSON: '{"type":"service_account"}',
+        INPUT_GITHUB_TOKEN: "gh",
+        PATH_THROUGH_MARKER: "kept",
+      },
+      validationEnvironment,
+    );
+
+    expect(result.PATH_THROUGH_MARKER).toBe("kept");
+    expect(result.AWS_SECRET_ACCESS_KEY).toBeUndefined();
+    expect(result.GOOGLE_APPLICATION_CREDENTIALS).toBeUndefined();
+    expect(result.INPUT_AI_API_KEY).toBeUndefined();
+    expect(result.INPUT_AI_AWS_SECRET_ACCESS_KEY).toBeUndefined();
+    expect(result.INPUT_AI_GCP_SERVICE_ACCOUNT_JSON).toBeUndefined();
+    expect(result.INPUT_GITHUB_TOKEN).toBeUndefined();
   });
 });
