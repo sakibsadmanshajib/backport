@@ -59,7 +59,7 @@ const runValidationCommands = async (
   const [command, ...remaining] = commands;
 
   if (!command) {
-    return;
+    return undefined;
   }
 
   const exitCode = await runner(command, cwd);

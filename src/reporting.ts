@@ -96,7 +96,7 @@ const getDeveloperHandoffCommentBody = ({
   stage,
 }: DeveloperHandoffCommentInput): string => {
   const safeReason = sanitize(reason, secrets);
-  const safeBase = base.replaceAll(/[^a-zA-Z0-9._-]/gu, "-");
+  const safeBase = base.replaceAll(/[^a-zA-Z0-9._/-]/gu, "-");
   const worktreePath = `.worktrees/backport-${safeBase}`;
 
   return [

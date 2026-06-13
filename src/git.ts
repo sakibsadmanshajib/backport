@@ -134,7 +134,14 @@ class GitRepository {
   }
 
   async readWorkingTreeFile(path: string): Promise<string> {
-    return readFile(`${this.#path}/${path}`, "utf8");
+    const absolutePath = resolve(this.#path, path);
+    const repositoryPrefix = `${resolve(this.#path)}${sep}`;
+
+    if (!absolutePath.startsWith(repositoryPrefix)) {
+      throw new Error(`Refusing to read outside the repository: ${path}.`);
+    }
+
+    return readFile(absolutePath, "utf8");
   }
 
   async writeFile(path: string, content: string): Promise<void> {
