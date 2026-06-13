@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { afterEach, describe, expect, it } from "vitest";
 import { collectConflictContext } from "../../src/conflicts/context.js";
 import { GitRepository } from "../../src/git.js";

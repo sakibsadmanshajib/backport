@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { describe, expect, it } from "vitest";
 import { resolveConflictWithAi } from "../../src/ai/resolver.js";
 import type {

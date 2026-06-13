@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { describe, expect, it } from "vitest";
 import type { ResolutionDecision, ReviewDecision } from "../src/ai/schema.js";
 import {

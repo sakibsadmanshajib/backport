@@ -14,7 +14,6 @@
  * Each provider test is skipped unless its key is present.
  */
 import { env } from "node:process";
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { describe, expect, it } from "vitest";
 import {
   buildResolutionRequest,

@@ -1,6 +1,5 @@
 import { appendFile } from "node:fs/promises";
 import { env } from "node:process";
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { afterEach, describe, expect, it } from "vitest";
 import type { ResolutionDecision } from "../src/ai/schema.js";
 import type { EnabledAiConfig } from "../src/config.js";

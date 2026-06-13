@@ -1,7 +1,6 @@
 import { group, info, warning } from "@actions/core";
 import { exec } from "@actions/exec";
 import { getOctokit } from "@actions/github";
-import type { GitHub } from "@actions/github/lib/utils.js";
 import type {
   PullRequestClosedEvent,
   PullRequestLabeledEvent,
@@ -62,7 +61,19 @@ const warnIfSquashIsNotTheOnlyAllowedMergeMethod = async ({
   owner,
   repo,
 }: {
-  github: InstanceType<typeof GitHub>;
+  github: {
+    request: (
+      route: string,
+      parameters: { [key: string]: unknown },
+    ) => Promise<{
+      // Fields from the GitHub REST GET /repos/{owner}/{repo} response.
+      data: {
+        allow_merge_commit?: boolean | null;
+        allow_rebase_merge?: boolean | null;
+        allow_squash_merge?: boolean | null;
+      };
+    }>;
+  };
   owner: string;
   repo: string;
 }) => {

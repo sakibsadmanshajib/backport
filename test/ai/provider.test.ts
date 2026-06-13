@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { describe, expect, it } from "vitest";
 import { createModelProvider } from "../../src/ai/provider.js";
 import { AnthropicFamilyProvider } from "../../src/ai/providers/anthropic.js";

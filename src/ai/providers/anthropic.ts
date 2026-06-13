@@ -74,14 +74,10 @@ type VertexAuth = Readonly<{
 const normalizeResponse = (response: {
   parsed_output?: unknown;
   stop_details?: unknown;
-  // eslint-disable-next-line @typescript-eslint/ban-types
   stop_reason?: string | null;
   usage: {
-    // eslint-disable-next-line @typescript-eslint/ban-types
     cache_creation_input_tokens?: number | null;
-    // eslint-disable-next-line @typescript-eslint/ban-types
     cache_read_input_tokens?: number | null;
-    // eslint-disable-next-line @typescript-eslint/ban-types
     input_tokens?: number | null;
     output_tokens: number;
   };
