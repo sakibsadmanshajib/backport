@@ -103,4 +103,75 @@ describe("collectConflictContext", () => {
       resolved.trim(),
     );
   });
+
+  it("omits base when index stage 1 is absent (add/add conflict)", async () => {
+    // Add/add conflict: both branches introduce the same new file independently.
+    // Stage 1 (base) is absent because the file did not exist at the merge-base.
+    const repository = await TestGitRepository.create();
+    repositories.push(repository);
+
+    await repository.write("readme.txt", "init\n");
+    await repository.commit("init");
+
+    await repository.git("switch", "--create", "feature");
+    await repository.write("new.ts", "export const a = 1;\n");
+    const sourceCommit = await repository.commit("add new.ts on feature");
+
+    await repository.git("switch", "--create", "release", "main");
+    await repository.write("new.ts", "export const a = 2;\n");
+    await repository.commit("add new.ts on release with different content");
+
+    const git = new GitRepository(repository.path);
+    const cherryPick = await git.tryCherryPick(sourceCommit);
+
+    expect(cherryPick.status).toBe("conflicted");
+
+    const context = await collectConflictContext(git, sourceCommit);
+
+    expect(context.files).toHaveLength(1);
+    const [file] = context.files;
+
+    // Base must not exist: stage 1 is absent for an add/add conflict.
+    expect(file).not.toHaveProperty("base");
+    expect(file?.workingTree).toContain("<<<<<<<");
+    expect(file?.path).toBe("new.ts");
+  });
+
+  it("produces empty blame when git blame returns a non-zero exit code", async () => {
+    // Use the enum conflict repo but inject a runner that fails blame commands,
+    // exercising the `exitCode !== 0 ? "" : result.stdout.trim()` branch.
+    const { git: realGit, sourceCommit } = await createEnumConflict();
+
+    // Wrap the real runner: return exitCode 1 for blame, delegate everything else.
+    const realRunner = async (args: readonly string[]) => {
+      // Access via the public run() surface is not possible for the raw runner,
+      // so we build a thin pass-through using getExecOutput directly.
+      const { getExecOutput } = await import("@actions/exec");
+      const result = await getExecOutput("git", [...args], {
+        cwd: realGit.path,
+        ignoreReturnCode: true,
+        silent: true,
+      });
+      return {
+        exitCode: result.exitCode,
+        stderr: result.stderr,
+        stdout: result.stdout,
+      };
+    };
+
+    const failingBlameRunner = async (args: readonly string[]) => {
+      if (args[0] === "blame") {
+        return { exitCode: 1, stderr: "simulated blame failure", stdout: "" };
+      }
+
+      return realRunner(args);
+    };
+
+    const git = new GitRepository(realGit.path, failingBlameRunner);
+    const context = await collectConflictContext(git, sourceCommit);
+
+    expect(context.files).toHaveLength(1);
+    // Blame must collapse to "" when every blame section fails.
+    expect(context.files[0]?.blame).toBe("");
+  });
 });
