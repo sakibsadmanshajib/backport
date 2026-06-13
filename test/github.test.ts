@@ -13,6 +13,9 @@ describe("GitHubGateway", () => {
       route: string;
     }> = [];
     const client: GitHubRequestClient = {
+      async paginate(route) {
+        throw new Error(`Unexpected paginate: ${route}`);
+      },
       async request(route, parameters) {
         calls.push({ parameters, route });
         return { data: route.includes("/pulls") ? { number: 77 } : {} };
@@ -54,26 +57,29 @@ describe("GitHubGateway", () => {
 
   it("finds only merged backports referencing the exact source", async () => {
     const client: GitHubRequestClient = {
-      async request(route) {
+      async paginate(route) {
         if (route === "GET /search/issues") {
-          return {
-            data: {
-              items: [
-                {
-                  body: "Backport source-sha from #42.",
-                  number: 101,
-                  pull_request: {},
-                },
-                {
-                  body: "Unrelated pull request.",
-                  number: 102,
-                  pull_request: {},
-                },
-              ],
+          return [
+            {
+              body: "Backport source-sha from #42.",
+              number: 101,
+              pull_request: {},
             },
-          };
+            {
+              body: "Unrelated pull request.",
+              number: 102,
+              pull_request: {},
+            },
+          ];
         }
 
+        if (route === "GET /repos/{owner}/{repo}/pulls/{pull_number}/files") {
+          return [{ filename: "status.ts" }];
+        }
+
+        throw new Error(`Unexpected paginate route: ${route}`);
+      },
+      async request(route) {
         if (route === "GET /repos/{owner}/{repo}/pulls/{pull_number}") {
           return {
             data: {
@@ -83,10 +89,6 @@ describe("GitHubGateway", () => {
               merged_at: "2026-06-12T00:00:00Z",
             },
           };
-        }
-
-        if (route === "GET /repos/{owner}/{repo}/pulls/{pull_number}/files") {
-          return { data: [{ filename: "status.ts" }] };
         }
 
         throw new Error(`Unexpected route: ${route}`);
@@ -112,5 +114,69 @@ describe("GitHubGateway", () => {
         sourcePullRequestNumber: 42,
       },
     ]);
+  });
+
+  it("aggregates all pages from sibling search and changed-files when results exceed one page", async () => {
+    const page1SearchItems = Array.from({ length: 100 }, (_, i) => ({
+      body: `Backport source-sha from #42.`,
+      number: 200 + i,
+      pull_request: {},
+    }));
+    const page2SearchItems = [
+      {
+        body: "Backport source-sha from #42.",
+        number: 301,
+        pull_request: {},
+      },
+    ];
+    const allSearchItems = [...page1SearchItems, ...page2SearchItems];
+
+    const page1Files = Array.from({ length: 100 }, (_, i) => ({
+      filename: `file${i}.ts`,
+    }));
+    const page2Files = [{ filename: "extra.ts" }];
+    const allFiles = [...page1Files, ...page2Files];
+
+    const client: GitHubRequestClient = {
+      async paginate(route) {
+        if (route === "GET /search/issues") {
+          return allSearchItems;
+        }
+
+        if (route === "GET /repos/{owner}/{repo}/pulls/{pull_number}/files") {
+          return allFiles;
+        }
+
+        throw new Error(`Unexpected paginate route: ${route}`);
+      },
+      async request(route) {
+        if (route === "GET /repos/{owner}/{repo}/pulls/{pull_number}") {
+          return {
+            data: {
+              base: { sha: "base-sha" },
+              head: { sha: "head-sha" },
+              merge_commit_sha: "result-sha",
+              merged_at: "2026-06-12T00:00:00Z",
+            },
+          };
+        }
+
+        throw new Error(`Unexpected route: ${route}`);
+      },
+    };
+    const gateway = new GitHubGateway(client);
+
+    const results = await gateway.findSiblingBackports({
+      owner: "owner",
+      repo: "repo",
+      sourceCommit: "source-sha",
+      sourcePullRequestNumber: 42,
+    });
+
+    expect(results).toHaveLength(101);
+    expect(results[100]).toMatchObject({
+      changedPaths: allFiles.map(({ filename }) => filename),
+      number: 301,
+    });
   });
 });

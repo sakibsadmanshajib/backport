@@ -1,3 +1,4 @@
+import { warning } from "@actions/core";
 import ensureError from "ensure-error";
 import { resolveConflictWithAi } from "./ai/resolver.js";
 import type { ResolutionDecision } from "./ai/schema.js";
@@ -130,26 +131,36 @@ const backportDestination = async (
     stage: string,
     reason: string,
   ): Promise<DestinationResult> => {
-    await workspace.abort();
-    await github.addComment({
-      body:
-        context === undefined
-          ? `The backport to \`${base}\` failed during ${stage}: ${reason}`
-          : getDeveloperHandoffCommentBody({
-              base,
-              conflictPaths: context.files.map(({ path }) => path),
-              head,
-              mergeBase: context.mergeBase,
-              reason,
-              secrets: aiConfig.enabled ? [aiConfig.apiKey] : [],
-              sourceCommit: context.sourceCommit,
-              sourceParent: context.sourceParent,
-              stage,
-            }),
-      issueNumber: sourcePullRequestNumber,
-      owner,
-      repo,
-    });
+    try {
+      await workspace.abort();
+    } catch (error: unknown) {
+      warning(`Failed to abort workspace: ${ensureError(error).message}`);
+    }
+
+    try {
+      await github.addComment({
+        body:
+          context === undefined
+            ? `The backport to \`${base}\` failed during ${stage}: ${reason}`
+            : getDeveloperHandoffCommentBody({
+                base,
+                conflictPaths: context.files.map(({ path }) => path),
+                head,
+                mergeBase: context.mergeBase,
+                reason,
+                secrets: aiConfig.enabled ? [aiConfig.apiKey] : [],
+                sourceCommit: context.sourceCommit,
+                sourceParent: context.sourceParent,
+                stage,
+              }),
+        issueNumber: sourcePullRequestNumber,
+        owner,
+        repo,
+      });
+    } catch (error: unknown) {
+      warning(`Failed to post failure comment: ${ensureError(error).message}`);
+    }
+
     return { base, reason, status: "failed" };
   };
 

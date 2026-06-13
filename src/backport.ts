@@ -186,6 +186,9 @@ const backport = async ({
   );
   const workspace = new GitBackportWorkspace(git);
   const requestClient: GitHubRequestClient = {
+    async paginate(route, parameters) {
+      return octokit.paginate(route, parameters);
+    },
     async request(route, parameters) {
       const response = await octokit.request(route, parameters);
       return { data: response.data };

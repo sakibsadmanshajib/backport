@@ -296,6 +296,38 @@ describe("backportDestination", () => {
     expect(work.calls).not.toContain("push");
   });
 
+  it("resolves to a failed result even when abort and addComment both throw", async () => {
+    const work = workspace({ status: "clean" });
+    work.prepare = async () => {
+      throw new Error("prepare exploded");
+    };
+
+    const result = await backportDestination(
+      input({
+        github: {
+          async addComment() {
+            throw new Error("comment service down");
+          },
+          addLabels: noOp,
+          createPullRequest: async () => 77,
+          findSiblingBackports: async () => [],
+        },
+        workspace: {
+          ...work,
+          async abort() {
+            throw new Error("abort exploded");
+          },
+        },
+      }),
+    );
+
+    expect(result).toEqual({
+      base: "release",
+      reason: "prepare exploded",
+      status: "failed",
+    });
+  });
+
   it("escalates when a reused sibling resolution fails validation", async () => {
     const work = workspace({ status: "conflicted" });
     let providerCreated = false;

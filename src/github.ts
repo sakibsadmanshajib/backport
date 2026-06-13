@@ -13,6 +13,10 @@ type SiblingBackportCandidate = Readonly<{
 type GitHubRequestParameters = { [key: string]: unknown };
 
 type GitHubRequestClient = {
+  paginate: (
+    route: string,
+    parameters?: GitHubRequestParameters,
+  ) => Promise<unknown[]>;
   request: (
     route: string,
     parameters: GitHubRequestParameters,
@@ -135,11 +139,11 @@ class GitHubGateway {
     sourceCommit,
     sourcePullRequestNumber,
   }: FindSiblingBackportsInput): Promise<readonly SiblingBackportCandidate[]> {
-    const searchResponse = await this.#client.request("GET /search/issues", {
+    const searchItems = await this.#client.paginate("GET /search/issues", {
       per_page: 100,
       q: `repo:${owner}/${repo} is:pr "${sourceCommit}" "#${sourcePullRequestNumber}"`,
     });
-    const searchResult = searchResultSchema.parse(searchResponse.data);
+    const searchResult = searchResultSchema.parse({ items: searchItems });
     const expectedReference = `#${sourcePullRequestNumber}`;
     const matchingItems = searchResult.items.filter(
       (item) =>
@@ -149,7 +153,7 @@ class GitHubGateway {
     );
     const candidates = await Promise.all(
       matchingItems.map(async (item) => {
-        const [pullResponse, filesResponse] = await Promise.all([
+        const [pullResponse, filesData] = await Promise.all([
           this.#client.request(
             "GET /repos/{owner}/{repo}/pulls/{pull_number}",
             {
@@ -158,7 +162,7 @@ class GitHubGateway {
               repo,
             },
           ),
-          this.#client.request(
+          this.#client.paginate(
             "GET /repos/{owner}/{repo}/pulls/{pull_number}/files",
             {
               owner,
@@ -174,7 +178,7 @@ class GitHubGateway {
           return;
         }
 
-        const files = pullRequestFilesSchema.parse(filesResponse.data);
+        const files = pullRequestFilesSchema.parse(filesData);
 
         const candidate: SiblingBackportCandidate = {
           baseSha: pull.base.sha,
