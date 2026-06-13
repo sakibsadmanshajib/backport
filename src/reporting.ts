@@ -96,7 +96,12 @@ const getDeveloperHandoffCommentBody = ({
   stage,
 }: DeveloperHandoffCommentInput): string => {
   const safeReason = sanitize(reason, secrets);
-  const safeBase = base.replaceAll(/[^a-zA-Z0-9._-]/gu, "-");
+  const safeBase = base
+    .replaceAll(/[^a-zA-Z0-9._/-]/gu, "-")
+    .replaceAll(/(^|\/)\.\.(?=\/|$)/gu, "$1__");
+  const safeHead = head
+    .replaceAll(/[^a-zA-Z0-9._/-]/gu, "-")
+    .replaceAll(/(^|\/)\.\.(?=\/|$)/gu, "$1__");
   const worktreePath = `.worktrees/backport-${safeBase}`;
 
   return [
@@ -117,10 +122,10 @@ const getDeveloperHandoffCommentBody = ({
     "git fetch",
     `git worktree add ${worktreePath} ${base}`,
     `cd ${worktreePath}`,
-    `git switch --create ${head}`,
+    `git switch --create ${safeHead}`,
     `git cherry-pick -x ${sourceCommit}`,
     "# Resolve conflicts and run the required validation.",
-    `git push --set-upstream origin ${head}`,
+    `git push --set-upstream origin ${safeHead}`,
     "cd ../..",
     `git worktree remove ${worktreePath}`,
     "```",

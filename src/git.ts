@@ -134,7 +134,14 @@ class GitRepository {
   }
 
   async readWorkingTreeFile(path: string): Promise<string> {
-    return readFile(`${this.#path}/${path}`, "utf8");
+    const absolutePath = resolve(this.#path, path);
+    const repositoryPrefix = `${resolve(this.#path)}${sep}`;
+
+    if (!absolutePath.startsWith(repositoryPrefix)) {
+      throw new Error(`Refusing to read outside the repository: ${path}.`);
+    }
+
+    return readFile(absolutePath, "utf8");
   }
 
   async writeFile(path: string, content: string): Promise<void> {
@@ -154,11 +161,11 @@ class GitRepository {
   }
 
   async switchBranch(branch: string): Promise<void> {
-    await this.run(["switch", branch]);
+    await this.run(["switch", "--", branch]);
   }
 
   async createBranch(branch: string): Promise<void> {
-    await this.run(["switch", "--create", branch]);
+    await this.run(["switch", "--create", "--", branch]);
   }
 
   async configureIdentity(name: string, email: string): Promise<void> {
@@ -167,7 +174,7 @@ class GitRepository {
   }
 
   async push(branch: string): Promise<void> {
-    await this.run(["push", "--set-upstream", "origin", branch]);
+    await this.run(["push", "--set-upstream", "origin", "--", branch]);
   }
 
   async diffCheck(): Promise<boolean> {

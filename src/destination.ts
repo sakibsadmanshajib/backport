@@ -3,7 +3,11 @@ import ensureError from "ensure-error";
 import { resolveConflictWithAi } from "./ai/resolver.js";
 import type { ResolutionDecision } from "./ai/schema.js";
 import type { StructuredModelProvider } from "./ai/types.js";
-import type { AiConfig, EnabledAiConfig } from "./config.js";
+import {
+  type AiConfig,
+  type EnabledAiConfig,
+  getSecretsForConfig,
+} from "./config.js";
 import {
   type ValidationResult,
   evaluateConflictEligibility,
@@ -148,7 +152,7 @@ const backportDestination = async (
                 head,
                 mergeBase: context.mergeBase,
                 reason,
-                secrets: aiConfig.enabled ? [aiConfig.apiKey] : [],
+                secrets: getSecretsForConfig(aiConfig),
                 sourceCommit: context.sourceCommit,
                 sourceParent: context.sourceParent,
                 stage,
