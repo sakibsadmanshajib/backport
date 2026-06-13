@@ -2,7 +2,6 @@ import { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
 import { Anthropic } from "@anthropic-ai/sdk";
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
 import { GoogleAuth } from "google-auth-library";
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AnthropicFamilyProvider,
@@ -14,46 +13,54 @@ import {
 import { structuredRequest } from "../../helpers/fakes.js";
 
 vi.mock("@anthropic-ai/sdk", () => {
-  const Anthropic = vi.fn(() => ({
-    messages: {
-      parse: vi.fn().mockResolvedValue({
-        parsed_output: { answer: "resolved" },
-        stop_reason: "end_turn",
-        usage: { input_tokens: 5, output_tokens: 3 },
-      }),
-    },
-  }));
+  const Anthropic = vi.fn(function () {
+    return {
+      messages: {
+        parse: vi.fn().mockResolvedValue({
+          parsed_output: { answer: "resolved" },
+          stop_reason: "end_turn",
+          usage: { input_tokens: 5, output_tokens: 3 },
+        }),
+      },
+    };
+  });
   return { Anthropic };
 });
 
 vi.mock("@anthropic-ai/bedrock-sdk", () => {
-  const AnthropicBedrock = vi.fn(() => ({
-    messages: {
-      parse: vi.fn().mockResolvedValue({
-        parsed_output: { answer: "resolved" },
-        stop_reason: "end_turn",
-        usage: { input_tokens: 5, output_tokens: 3 },
-      }),
-    },
-  }));
+  const AnthropicBedrock = vi.fn(function () {
+    return {
+      messages: {
+        parse: vi.fn().mockResolvedValue({
+          parsed_output: { answer: "resolved" },
+          stop_reason: "end_turn",
+          usage: { input_tokens: 5, output_tokens: 3 },
+        }),
+      },
+    };
+  });
   return { AnthropicBedrock };
 });
 
 vi.mock("@anthropic-ai/vertex-sdk", () => {
-  const AnthropicVertex = vi.fn(() => ({
-    messages: {
-      parse: vi.fn().mockResolvedValue({
-        parsed_output: { answer: "resolved" },
-        stop_reason: "end_turn",
-        usage: { input_tokens: 5, output_tokens: 3 },
-      }),
-    },
-  }));
+  const AnthropicVertex = vi.fn(function () {
+    return {
+      messages: {
+        parse: vi.fn().mockResolvedValue({
+          parsed_output: { answer: "resolved" },
+          stop_reason: "end_turn",
+          usage: { input_tokens: 5, output_tokens: 3 },
+        }),
+      },
+    };
+  });
   return { AnthropicVertex };
 });
 
 vi.mock("google-auth-library", () => {
-  const GoogleAuth = vi.fn();
+  const GoogleAuth = vi.fn(function () {
+    return {};
+  });
   return { GoogleAuth };
 });
 
@@ -109,7 +116,9 @@ describe("nativeClientFactory", () => {
         }),
       },
     };
-    MockAnthropic.mockReturnValueOnce(sdkInstance as never);
+    MockAnthropic.mockImplementationOnce(function () {
+      return sdkInstance as never;
+    });
 
     const factory = nativeClientFactory("sk-null-usage");
     const client = factory({ maxRetries: 0, timeout: 5000 });

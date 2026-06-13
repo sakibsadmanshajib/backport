@@ -23,7 +23,8 @@ const sanitizeProviderError = (
   secrets: string | readonly string[],
 ): string => {
   const secretList = typeof secrets === "string" ? [secrets] : secrets;
-  let message = ensureError(error).message;
+  const { message: rawMessage } = ensureError(error);
+  let message = rawMessage;
 
   for (const secret of secretList) {
     if (secret.length > 0) {

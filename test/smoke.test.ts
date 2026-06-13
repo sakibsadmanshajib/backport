@@ -1,5 +1,4 @@
 import { versions } from "node:process";
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { describe, expect, it } from "vitest";
 
 describe("test harness", () => {

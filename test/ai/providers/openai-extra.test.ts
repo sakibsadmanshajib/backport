@@ -1,5 +1,4 @@
 import { OpenAI } from "openai";
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type OpenAiClientFactory,
@@ -8,17 +7,19 @@ import {
 import { structuredRequest } from "../../helpers/fakes.js";
 
 vi.mock("openai", () => {
-  const OpenAI = vi.fn(() => ({
-    responses: {
-      parse: vi.fn().mockResolvedValue({
-        incomplete_details: undefined,
-        output: [],
-        output_parsed: { answer: "resolved" },
-        status: "completed",
-        usage: { input_tokens: 10, output_tokens: 5 },
-      }),
-    },
-  }));
+  const OpenAI = vi.fn(function () {
+    return {
+      responses: {
+        parse: vi.fn().mockResolvedValue({
+          incomplete_details: undefined,
+          output: [],
+          output_parsed: { answer: "resolved" },
+          status: "completed",
+          usage: { input_tokens: 10, output_tokens: 5 },
+        }),
+      },
+    };
+  });
   return { OpenAI };
 });
 
@@ -65,7 +66,9 @@ describe("defaultOpenAiClientFactory (via OpenAI SDK mock)", () => {
         }),
       },
     };
-    MockOpenAI.mockReturnValueOnce(sdkInstance as never);
+    MockOpenAI.mockImplementationOnce(function () {
+      return sdkInstance as never;
+    });
 
     const provider = new OpenAiProvider({
       apiKey: "sk-key",
@@ -89,7 +92,9 @@ describe("defaultOpenAiClientFactory (via OpenAI SDK mock)", () => {
         }),
       },
     };
-    MockOpenAI.mockReturnValueOnce(sdkInstance as never);
+    MockOpenAI.mockImplementationOnce(function () {
+      return sdkInstance as never;
+    });
 
     const provider = new OpenAiProvider({
       apiKey: "sk-key",
@@ -117,7 +122,9 @@ describe("defaultOpenAiClientFactory (via OpenAI SDK mock)", () => {
         }),
       },
     };
-    MockOpenAI.mockReturnValueOnce(sdkInstance as never);
+    MockOpenAI.mockImplementationOnce(function () {
+      return sdkInstance as never;
+    });
 
     const provider = new OpenAiProvider({
       apiKey: "sk-key",
@@ -139,7 +146,9 @@ describe("defaultOpenAiClientFactory (via OpenAI SDK mock)", () => {
         }),
       },
     };
-    MockOpenAI.mockReturnValueOnce(sdkInstance as never);
+    MockOpenAI.mockImplementationOnce(function () {
+      return sdkInstance as never;
+    });
 
     const provider = new OpenAiProvider({
       apiKey: "sk-key",

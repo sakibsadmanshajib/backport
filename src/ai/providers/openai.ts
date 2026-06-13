@@ -109,14 +109,13 @@ const defaultOpenAiClientFactory: OpenAiClientFactory = (options) => {
 };
 
 const hasRefusal = (response: OpenAiResponse): boolean =>
-  response.output.some(
-    (item) =>
-      item.content?.some(
-        (content) =>
-          content.type === "refusal" &&
-          typeof content.refusal === "string" &&
-          content.refusal.length > 0,
-      ),
+  response.output.some((item) =>
+    item.content?.some(
+      (content) =>
+        content.type === "refusal" &&
+        typeof content.refusal === "string" &&
+        content.refusal.length > 0,
+    ),
   );
 
 class OpenAiProvider implements StructuredModelProvider {

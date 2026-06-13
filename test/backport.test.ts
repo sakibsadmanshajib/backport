@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { backport } from "../src/backport.js";
 import type { AiConfig } from "../src/config.js";
@@ -20,26 +19,32 @@ vi.mock("@actions/exec", () => ({
 }));
 
 vi.mock("@actions/github", () => ({
-  getOctokit: vi.fn(() => ({
-    paginate: vi.fn(async () => []),
-    request: vi.fn(async () => ({
-      data: { allow_merge_commit: false, allow_rebase_merge: false },
-    })),
-  })),
+  getOctokit: vi.fn(function () {
+    return {
+      paginate: vi.fn(async () => []),
+      request: vi.fn(async () => ({
+        data: { allow_merge_commit: false, allow_rebase_merge: false },
+      })),
+    };
+  }),
 }));
 
 vi.mock("../src/git.js", () => ({
-  GitRepository: vi.fn().mockImplementation(() => ({
-    configureIdentity: vi.fn(async () => undefined),
-  })),
+  GitRepository: vi.fn(function () {
+    return { configureIdentity: vi.fn(async () => undefined) };
+  }),
 }));
 
 vi.mock("../src/workspace.js", () => ({
-  GitBackportWorkspace: vi.fn().mockImplementation(() => ({})),
+  GitBackportWorkspace: vi.fn(function () {
+    return {};
+  }),
 }));
 
 vi.mock("../src/github.js", () => ({
-  GitHubGateway: vi.fn().mockImplementation(() => ({})),
+  GitHubGateway: vi.fn(function () {
+    return {};
+  }),
 }));
 
 vi.mock("../src/destination.js", () => ({
