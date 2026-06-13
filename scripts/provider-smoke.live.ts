@@ -153,4 +153,60 @@ describe("live provider smoke", () => {
     },
     timeoutMs,
   );
+
+  const anthropicCompatKey = env.SMOKE_ANTHROPIC_COMPAT_API_KEY;
+  const anthropicCompatBase = env.SMOKE_ANTHROPIC_COMPAT_BASE_URL;
+  const anthropicCompatModel = env.SMOKE_ANTHROPIC_COMPAT_MODEL;
+  it.runIf(
+    Boolean(anthropicCompatKey && anthropicCompatBase && anthropicCompatModel),
+  )(
+    "anthropic-compatible returns strict structured output",
+    async () => {
+      const config: EnabledAiConfig = {
+        ...baseConfig,
+        apiKey: anthropicCompatKey!,
+        baseUrl: anthropicCompatBase!,
+        model: anthropicCompatModel!,
+        provider: "anthropic-compatible",
+      };
+      await smoke("anthropic-compatible", createModelProvider(config), config);
+    },
+    timeoutMs,
+  );
+
+  const bedrockRegion = env.SMOKE_AWS_REGION;
+  const bedrockModel = env.SMOKE_BEDROCK_MODEL;
+  it.runIf(Boolean(bedrockRegion && bedrockModel))(
+    "anthropic-bedrock returns strict structured output",
+    async () => {
+      const config: EnabledAiConfig = {
+        ...baseConfig,
+        apiKey: "",
+        awsRegion: bedrockRegion!,
+        model: bedrockModel!,
+        provider: "anthropic-bedrock",
+      };
+      await smoke("anthropic-bedrock", createModelProvider(config), config);
+    },
+    timeoutMs,
+  );
+
+  const vertexProject = env.SMOKE_GCP_PROJECT;
+  const vertexRegion = env.SMOKE_GCP_REGION;
+  const vertexModel = env.SMOKE_VERTEX_MODEL;
+  it.runIf(Boolean(vertexProject && vertexRegion && vertexModel))(
+    "anthropic-vertex returns strict structured output",
+    async () => {
+      const config: EnabledAiConfig = {
+        ...baseConfig,
+        apiKey: "",
+        gcpProject: vertexProject!,
+        gcpRegion: vertexRegion!,
+        model: vertexModel!,
+        provider: "anthropic-vertex",
+      };
+      await smoke("anthropic-vertex", createModelProvider(config), config);
+    },
+    timeoutMs,
+  );
 });
