@@ -18,14 +18,25 @@ const failure = (
   ...(usage ? { usage } : {}),
 });
 
-const sanitizeProviderError = (error: unknown, apiKey: string): string => {
-  const message = ensureError(error).message.replaceAll(apiKey, "[REDACTED]");
+const sanitizeProviderError = (
+  error: unknown,
+  secrets: string | readonly string[],
+): string => {
+  const secretList = typeof secrets === "string" ? [secrets] : secrets;
+  let message = ensureError(error).message;
+
+  for (const secret of secretList) {
+    if (secret.length > 0) {
+      message = message.replaceAll(secret, "[REDACTED]");
+    }
+  }
+
   return message.slice(0, 500);
 };
 
 const normalizeProviderError = (
   error: unknown,
-  apiKey: string,
+  secrets: string | readonly string[],
 ): ModelFailure => {
   const normalized = ensureError(error);
   const category =
@@ -34,7 +45,7 @@ const normalizeProviderError = (
       ? "timeout"
       : "provider-error";
 
-  return failure(category, sanitizeProviderError(normalized, apiKey));
+  return failure(category, sanitizeProviderError(normalized, secrets));
 };
 
 const validateParsedOutput = <TSchema extends z.ZodTypeAny>(
