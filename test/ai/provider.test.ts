@@ -64,4 +64,74 @@ describe("createModelProvider", () => {
       }),
     ).toThrow("base URL");
   });
+
+  it("rejects an anthropic-bedrock provider without an AWS region", () => {
+    expect(() =>
+      createModelProvider({
+        ...config("anthropic-bedrock"),
+        awsRegion: undefined,
+      }),
+    ).toThrow("AWS region");
+  });
+
+  it("rejects an anthropic-vertex provider without a GCP project", () => {
+    expect(() =>
+      createModelProvider({
+        ...config("anthropic-vertex"),
+        gcpProject: undefined,
+      }),
+    ).toThrow("GCP project and region");
+  });
+
+  it("rejects an anthropic-vertex provider without a GCP region", () => {
+    expect(() =>
+      createModelProvider({
+        ...config("anthropic-vertex"),
+        gcpRegion: undefined,
+      }),
+    ).toThrow("GCP project and region");
+  });
+
+  it("rejects an openai-compatible provider without a base URL", () => {
+    expect(() =>
+      createModelProvider({
+        ...config("openai-compatible"),
+        baseUrl: undefined,
+      }),
+    ).toThrow("base URL");
+  });
+
+  it("creates a bedrock adapter without optional AWS credentials", () => {
+    const result = createModelProvider({
+      ...config("anthropic-bedrock"),
+      awsSecretAccessKey: undefined,
+      awsSessionToken: undefined,
+    });
+    expect(result).toBeInstanceOf(AnthropicFamilyProvider);
+  });
+
+  it("creates a bedrock adapter with optional AWS credentials", () => {
+    const result = createModelProvider({
+      ...config("anthropic-bedrock"),
+      awsSecretAccessKey: "aws-secret",
+      awsSessionToken: "aws-token",
+    });
+    expect(result).toBeInstanceOf(AnthropicFamilyProvider);
+  });
+
+  it("creates a vertex adapter without a service account JSON", () => {
+    const result = createModelProvider({
+      ...config("anthropic-vertex"),
+      gcpServiceAccountJson: undefined,
+    });
+    expect(result).toBeInstanceOf(AnthropicFamilyProvider);
+  });
+
+  it("creates a vertex adapter with a service account JSON", () => {
+    const result = createModelProvider({
+      ...config("anthropic-vertex"),
+      gcpServiceAccountJson: '{"type":"service_account"}',
+    });
+    expect(result).toBeInstanceOf(AnthropicFamilyProvider);
+  });
 });

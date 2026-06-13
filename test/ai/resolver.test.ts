@@ -187,6 +187,74 @@ describe("resolveConflictWithAi", () => {
     expect(results).toHaveLength(0);
   });
 
+  it("escalates when the review provider call fails", async () => {
+    const results: Array<ModelResult<unknown>> = [
+      { data: resolution, ok: true },
+      { category: "timeout", message: "Review timed out.", ok: false },
+    ];
+
+    const outcome = await resolveConflictWithAi({
+      config,
+      context,
+      provider: provider(results),
+      validateCandidate: async () => ({ valid: true }),
+    });
+
+    expect(outcome.status).toBe("escalated");
+    expect(outcome.status === "escalated" ? outcome.reason : "").toContain(
+      "timeout",
+    );
+    expect(results).toHaveLength(0);
+  });
+
+  it("escalates when the final validation fails after reviewer approval", async () => {
+    let callCount = 0;
+    const results: Array<ModelResult<unknown>> = [
+      { data: resolution, ok: true },
+      { data: approval, ok: true },
+    ];
+
+    const outcome = await resolveConflictWithAi({
+      config,
+      context,
+      provider: provider(results),
+      async validateCandidate() {
+        callCount += 1;
+        if (callCount === 1) {
+          return { valid: true };
+        }
+
+        return { reasons: ["Final check failed."], valid: false };
+      },
+    });
+
+    expect(outcome.status).toBe("escalated");
+    expect(outcome.status === "escalated" ? outcome.reason : "").toContain(
+      "Final check failed.",
+    );
+    expect(results).toHaveLength(0);
+  });
+
+  it("escalates when the provider throws an unexpected exception", async () => {
+    const throwingProvider: StructuredModelProvider = {
+      async generate() {
+        throw new Error("Network socket closed unexpectedly.");
+      },
+    };
+
+    const outcome = await resolveConflictWithAi({
+      config,
+      context,
+      provider: throwingProvider,
+      validateCandidate: async () => ({ valid: true }),
+    });
+
+    expect(outcome.status).toBe("escalated");
+    expect(outcome.status === "escalated" ? outcome.reason : "").toContain(
+      "Network socket closed unexpectedly.",
+    );
+  });
+
   it("escalates a reviewer rejection without another resolution attempt", async () => {
     const results: Array<ModelResult<unknown>> = [
       { data: resolution, ok: true },
