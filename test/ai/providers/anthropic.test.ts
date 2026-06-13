@@ -2,8 +2,8 @@
 import { describe, expect, it } from "vitest";
 import {
   type AnthropicClient,
-  type AnthropicClientOptions,
-  AnthropicProvider,
+  type AnthropicRequestOptions,
+  AnthropicFamilyProvider,
 } from "../../../src/ai/providers/anthropic.js";
 import { structuredRequest } from "../../helpers/fakes.js";
 
@@ -19,48 +19,52 @@ const successResponse = {
   },
 } as const;
 
-describe("AnthropicProvider", () => {
+const familyProvider = (
+  client: AnthropicClient,
+  capture?: (options: AnthropicRequestOptions) => void,
+  secrets: readonly string[] = ["anthropic-secret"],
+): AnthropicFamilyProvider =>
+  new AnthropicFamilyProvider({
+    clientFactory: (options) => {
+      capture?.(options);
+      return client;
+    },
+    model: "claude-haiku-test",
+    secrets,
+  });
+
+describe("AnthropicFamilyProvider", () => {
   it("maps a structured request and normalizes usage", async () => {
-    let clientOptions: AnthropicClientOptions | undefined;
+    let requestOptions: AnthropicRequestOptions | undefined;
     let parseParameters: unknown;
-    let requestOptions: unknown;
+    let parseOptions: unknown;
     const client: AnthropicClient = {
       messages: {
         async parse(parameters, options) {
           parseParameters = parameters;
-          requestOptions = options;
+          parseOptions = options;
           return successResponse;
         },
       },
     };
-    const provider = new AnthropicProvider(
-      {
-        apiKey: "anthropic-secret",
-        model: "claude-haiku-test",
-      },
-      (options) => {
-        clientOptions = options;
-        return client;
-      },
-    );
 
-    await expect(provider.generate(structuredRequest())).resolves.toEqual({
+    await expect(
+      familyProvider(client, (options) => {
+        requestOptions = options;
+      }).generate(structuredRequest()),
+    ).resolves.toEqual({
       data: { answer: "resolved" },
       ok: true,
       usage: { inputTokens: 15, outputTokens: 5 },
     });
-    expect(clientOptions).toEqual({
-      apiKey: "anthropic-secret",
-      maxRetries: 0,
-      timeout: 15_000,
-    });
+    expect(requestOptions).toEqual({ maxRetries: 0, timeout: 15_000 });
     expect(parseParameters).toMatchObject({
       max_tokens: 512,
       messages: [{ content: "Resolve the conflict.", role: "user" }],
       model: "claude-haiku-test",
       system: "Return a safe structured answer.",
     });
-    expect(requestOptions).toEqual({ timeout: 15_000 });
+    expect(parseOptions).toEqual({ timeout: 15_000 });
   });
 
   it.each([
@@ -68,65 +72,58 @@ describe("AnthropicProvider", () => {
     ["max_tokens", "incomplete"],
     ["pause_turn", "incomplete"],
   ] as const)("normalizes %s as %s", async (stopReason, category) => {
-    const provider = new AnthropicProvider(
-      { apiKey: "secret", model: "model" },
-      () => ({
-        messages: {
-          parse: async () => ({
-            ...successResponse,
-            parsed_output: null,
-            stop_reason: stopReason,
-          }),
-        },
-      }),
-    );
+    const provider = familyProvider({
+      messages: {
+        parse: async () => ({
+          ...successResponse,
+          parsed_output: null,
+          stop_reason: stopReason,
+        }),
+      },
+    });
 
     await expect(provider.generate(structuredRequest())).resolves.toMatchObject(
-      {
-        category,
-        ok: false,
-      },
+      { category, ok: false },
     );
   });
 
   it("independently rejects invalid parsed output", async () => {
-    const provider = new AnthropicProvider(
-      { apiKey: "secret", model: "model" },
-      () => ({
-        messages: {
-          parse: async () => ({
-            ...successResponse,
-            parsed_output: { wrong: true },
-          }),
-        },
-      }),
-    );
+    const provider = familyProvider({
+      messages: {
+        parse: async () => ({
+          ...successResponse,
+          parsed_output: { wrong: true },
+        }),
+      },
+    });
 
     await expect(provider.generate(structuredRequest())).resolves.toMatchObject(
-      {
-        category: "invalid-output",
-        ok: false,
-      },
+      { category: "invalid-output", ok: false },
     );
   });
 
-  it("normalizes timeouts and redacts API keys", async () => {
-    const timeout = new Error("Request with anthropic-secret timed out.");
+  it("normalizes timeouts and redacts every carried secret", async () => {
+    const timeout = new Error(
+      "Request with anthropic-secret and aws-secret timed out.",
+    );
     timeout.name = "APIConnectionTimeoutError";
-    const provider = new AnthropicProvider(
-      { apiKey: "anthropic-secret", model: "model" },
-      () => ({
+    const provider = familyProvider(
+      {
         messages: {
           async parse() {
             throw timeout;
           },
         },
-      }),
+      },
+      undefined,
+      ["anthropic-secret", "aws-secret"],
     );
 
     const result = await provider.generate(structuredRequest());
 
     expect(result).toMatchObject({ category: "timeout", ok: false });
-    expect(result.ok ? "" : result.message).not.toContain("anthropic-secret");
+    const message = result.ok ? "" : result.message;
+    expect(message).not.toContain("anthropic-secret");
+    expect(message).not.toContain("aws-secret");
   });
 });

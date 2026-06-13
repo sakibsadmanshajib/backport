@@ -1,5 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod.mjs";
+import { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
+import { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
+import { GoogleAuth } from "google-auth-library";
+import type { ClientOptions as AnthropicVertexClientOptions } from "@anthropic-ai/vertex-sdk/client";
 import type { z } from "zod";
 import type {
   ModelResult,
@@ -11,17 +15,6 @@ import {
   normalizeProviderError,
   validateParsedOutput,
 } from "./common.js";
-
-type AnthropicProviderConfig = Readonly<{
-  apiKey: string;
-  model: string;
-}>;
-
-type AnthropicClientOptions = Readonly<{
-  apiKey: string;
-  maxRetries: number;
-  timeout: number;
-}>;
 
 type AnthropicParseParameters = Readonly<{
   max_tokens: number;
@@ -57,56 +50,154 @@ type AnthropicClient = {
   };
 };
 
+type AnthropicRequestOptions = Readonly<{
+  maxRetries: number;
+  timeout: number;
+}>;
+
 type AnthropicClientFactory = (
-  options: AnthropicClientOptions,
+  options: AnthropicRequestOptions,
 ) => AnthropicClient;
 
-const defaultAnthropicClientFactory: AnthropicClientFactory = (options) => {
-  const client = new Anthropic(options);
+type BedrockAuth = Readonly<{
+  accessKeyId?: string;
+  region: string;
+  secretAccessKey?: string;
+  sessionToken?: string;
+}>;
 
-  return {
-    messages: {
-      async parse(parameters, requestOptions) {
-        const response = await client.messages.parse(
-          parameters,
-          requestOptions,
-        );
+type VertexAuth = Readonly<{
+  project: string;
+  region: string;
+  serviceAccountJson?: string;
+}>;
 
-        return {
-          parsed_output: response.parsed_output ?? undefined,
-          stop_details: response.stop_details ?? undefined,
-          stop_reason: response.stop_reason ?? undefined,
-          usage: {
-            cache_creation_input_tokens:
-              response.usage.cache_creation_input_tokens ?? undefined,
-            cache_read_input_tokens:
-              response.usage.cache_read_input_tokens ?? undefined,
-            input_tokens: response.usage.input_tokens ?? undefined,
-            output_tokens: response.usage.output_tokens,
-          },
-        };
-      },
-    },
+const normalizeResponse = (response: {
+  parsed_output?: unknown;
+  stop_details?: unknown;
+  stop_reason?: string | null;
+  usage: {
+    cache_creation_input_tokens?: number | null;
+    cache_read_input_tokens?: number | null;
+    input_tokens?: number | null;
+    output_tokens: number;
   };
-};
+}): AnthropicResponse => ({
+  parsed_output: response.parsed_output ?? undefined,
+  stop_details: response.stop_details ?? undefined,
+  stop_reason: response.stop_reason ?? undefined,
+  usage: {
+    cache_creation_input_tokens:
+      response.usage.cache_creation_input_tokens ?? undefined,
+    cache_read_input_tokens:
+      response.usage.cache_read_input_tokens ?? undefined,
+    input_tokens: response.usage.input_tokens ?? undefined,
+    output_tokens: response.usage.output_tokens,
+  },
+});
 
-class AnthropicProvider implements StructuredModelProvider {
+const wrapClient = (
+  parse: (
+    parameters: AnthropicParseParameters,
+    options?: { timeout?: number },
+  ) => Promise<Parameters<typeof normalizeResponse>[0]>,
+): AnthropicClient => ({
+  messages: {
+    async parse(parameters, options) {
+      return normalizeResponse(await parse(parameters, options));
+    },
+  },
+});
+
+const nativeClientFactory =
+  (apiKey: string): AnthropicClientFactory =>
+  (options) => {
+    const client = new Anthropic({ apiKey, ...options });
+    return wrapClient(async (parameters, requestOptions) =>
+      client.messages.parse(parameters, requestOptions),
+    );
+  };
+
+const compatibleClientFactory =
+  (apiKey: string, baseURL: string): AnthropicClientFactory =>
+  (options) => {
+    const client = new Anthropic({ apiKey, baseURL, ...options });
+    return wrapClient(async (parameters, requestOptions) =>
+      client.messages.parse(parameters, requestOptions),
+    );
+  };
+
+const bedrockClientFactory =
+  (auth: BedrockAuth): AnthropicClientFactory =>
+  (options) => {
+    const hasExplicitKeys =
+      auth.accessKeyId !== undefined && auth.secretAccessKey !== undefined;
+    const client = new AnthropicBedrock({
+      awsRegion: auth.region,
+      ...(hasExplicitKeys
+        ? {
+            providerChainResolver: () =>
+              Promise.resolve(() =>
+                Promise.resolve({
+                  accessKeyId: auth.accessKeyId!,
+                  secretAccessKey: auth.secretAccessKey!,
+                  ...(auth.sessionToken
+                    ? { sessionToken: auth.sessionToken }
+                    : {}),
+                }),
+              ),
+          }
+        : {}),
+      ...options,
+    });
+    return wrapClient(async (parameters, requestOptions) =>
+      client.messages.parse(parameters, requestOptions),
+    );
+  };
+
+const vertexClientFactory =
+  (auth: VertexAuth): AnthropicClientFactory =>
+  (options) => {
+    const client = new AnthropicVertex({
+      projectId: auth.project,
+      region: auth.region,
+      ...(auth.serviceAccountJson
+        ? {
+            googleAuth: new GoogleAuth({
+              credentials: JSON.parse(auth.serviceAccountJson) as Record<
+                string,
+                unknown
+              >,
+              scopes: "https://www.googleapis.com/auth/cloud-platform",
+            }) as unknown as AnthropicVertexClientOptions["googleAuth"],
+          }
+        : {}),
+      ...options,
+    });
+    return wrapClient(async (parameters, requestOptions) =>
+      client.messages.parse(parameters, requestOptions),
+    );
+  };
+
+class AnthropicFamilyProvider implements StructuredModelProvider {
   readonly #clientFactory: AnthropicClientFactory;
-  readonly #config: AnthropicProviderConfig;
+  readonly #model: string;
+  readonly #secrets: readonly string[];
 
-  constructor(
-    config: AnthropicProviderConfig,
-    clientFactory: AnthropicClientFactory = defaultAnthropicClientFactory,
-  ) {
-    this.#clientFactory = clientFactory;
-    this.#config = config;
+  constructor(params: {
+    clientFactory: AnthropicClientFactory;
+    model: string;
+    secrets: readonly string[];
+  }) {
+    this.#clientFactory = params.clientFactory;
+    this.#model = params.model;
+    this.#secrets = params.secrets;
   }
 
   async generate<TSchema extends z.ZodTypeAny>(
     request: StructuredModelRequest<TSchema>,
   ): Promise<ModelResult<z.infer<TSchema>>> {
     const client = this.#clientFactory({
-      apiKey: this.#config.apiKey,
       maxRetries: 0,
       timeout: request.timeoutMs,
     });
@@ -119,7 +210,7 @@ class AnthropicProvider implements StructuredModelProvider {
             content,
             role,
           })),
-          model: this.#config.model,
+          model: this.#model,
           output_config: {
             format: zodOutputFormat(request.schema),
           },
@@ -164,15 +255,20 @@ class AnthropicProvider implements StructuredModelProvider {
         usage,
       );
     } catch (error: unknown) {
-      return normalizeProviderError(error, this.#config.apiKey);
+      return normalizeProviderError(error, this.#secrets);
     }
   }
 }
 
 export {
-  AnthropicProvider,
+  AnthropicFamilyProvider,
+  bedrockClientFactory,
+  compatibleClientFactory,
+  nativeClientFactory,
+  vertexClientFactory,
   type AnthropicClient,
   type AnthropicClientFactory,
-  type AnthropicClientOptions,
-  type AnthropicProviderConfig,
+  type AnthropicRequestOptions,
+  type BedrockAuth,
+  type VertexAuth,
 };
