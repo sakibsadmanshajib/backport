@@ -2,15 +2,15 @@
 // The project linter is xo (yarn xo). This file exists so that bare eslint
 // invocations (e.g. from editor integrations or commit hooks) find a root
 // config rather than failing with 'no configuration file' errors.
-'use strict';
+"use strict";
 
 module.exports = {
   root: true,
-  parser: '@typescript-eslint/parser',
-  plugins: ['@typescript-eslint'],
+  parser: "@typescript-eslint/parser",
+  plugins: ["@typescript-eslint"],
   parserOptions: {
-    ecmaVersion: 'latest',
-    sourceType: 'module',
+    ecmaVersion: "latest",
+    sourceType: "module",
   },
   env: {
     es2022: true,
