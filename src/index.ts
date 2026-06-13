@@ -35,7 +35,11 @@ const run = async () => {
       }
     }
 
-    const safeTemplateSettings = { interpolate: /<%=([\s\S]+?)%>/g };
+    const safeTemplateSettings = {
+      escape: /($^)/,
+      evaluate: /($^)/,
+      interpolate: /<%=([\s\S]+?)%>/g,
+    };
     const [getBody, getHead, _getLabels, getTitle] = [
       "body_template",
       "head_template",
