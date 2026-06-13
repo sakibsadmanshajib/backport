@@ -135,24 +135,65 @@ const parseStringArray = ({
   }
 };
 
+const assertBaseUrl = (provider: AiProviderName, baseUrl: string): void => {
+  if (baseUrlProviders.has(provider)) {
+    if (baseUrl.length === 0) {
+      throw new Error(
+        `Input "ai_base_url" is required for the ${provider} provider.`,
+      );
+    }
+
+    let parsed: URL;
+
+    try {
+      parsed = new URL(baseUrl);
+    } catch {
+      throw new Error('Input "ai_base_url" must be a valid URL.');
+    }
+
+    const isLocal =
+      parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+
+    if (parsed.protocol !== "https:" && !isLocal) {
+      throw new Error('Input "ai_base_url" must use https.');
+    }
+  }
+};
+
+const assertBedrockInputs = (
+  optional: (name: string) => string | undefined,
+): void => {
+  if (optional("ai_aws_region") === undefined) {
+    throw new Error(
+      'Input "ai_aws_region" is required for the anthropic-bedrock provider.',
+    );
+  }
+
+  const hasKeyId = optional("ai_aws_access_key_id") !== undefined;
+  const hasSecret = optional("ai_aws_secret_access_key") !== undefined;
+
+  if (hasKeyId && !hasSecret) {
+    throw new Error(
+      'Inputs "ai_aws_access_key_id" and "ai_aws_secret_access_key" must be provided together.',
+    );
+  }
+
+  if (hasSecret && !hasKeyId) {
+    throw new Error(
+      'Inputs "ai_aws_access_key_id" and "ai_aws_secret_access_key" must be provided together.',
+    );
+  }
+};
+
 const assertProviderInputs = (
   provider: AiProviderName,
   baseUrl: string,
   optional: (name: string) => string | undefined,
 ): void => {
-  if (baseUrlProviders.has(provider) && baseUrl.length === 0) {
-    throw new Error(
-      `Input "ai_base_url" is required for the ${provider} provider.`,
-    );
-  }
+  assertBaseUrl(provider, baseUrl);
 
-  if (
-    provider === "anthropic-bedrock" &&
-    optional("ai_aws_region") === undefined
-  ) {
-    throw new Error(
-      'Input "ai_aws_region" is required for the anthropic-bedrock provider.',
-    );
+  if (provider === "anthropic-bedrock") {
+    assertBedrockInputs(optional);
   }
 
   if (provider === "anthropic-vertex") {

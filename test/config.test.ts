@@ -214,6 +214,108 @@ describe("readAiConfig", () => {
     });
   });
 
+  // Finding A: partial Bedrock credentials
+  it("rejects when only ai_aws_access_key_id is provided without ai_aws_secret_access_key", () => {
+    expect(() =>
+      readAiConfig(
+        inputReader({
+          ...enabledInputs,
+          ai_api_key: "",
+          ai_aws_access_key_id: "AKIAEXAMPLE",
+          ai_aws_region: "us-east-1",
+          ai_provider: "anthropic-bedrock",
+        }),
+      ),
+    ).toThrow("ai_aws_secret_access_key");
+  });
+
+  it("rejects when only ai_aws_secret_access_key is provided without ai_aws_access_key_id", () => {
+    expect(() =>
+      readAiConfig(
+        inputReader({
+          ...enabledInputs,
+          ai_api_key: "",
+          ai_aws_region: "us-east-1",
+          ai_aws_secret_access_key: "aws-secret",
+          ai_provider: "anthropic-bedrock",
+        }),
+      ),
+    ).toThrow("ai_aws_access_key_id");
+  });
+
+  it("accepts anthropic-bedrock when both aws credentials are provided", () => {
+    const config = readAiConfig(
+      inputReader({
+        ...enabledInputs,
+        ai_api_key: "",
+        ai_aws_access_key_id: "AKIAEXAMPLE",
+        ai_aws_region: "us-east-1",
+        ai_aws_secret_access_key: "aws-secret",
+        ai_provider: "anthropic-bedrock",
+      }),
+    );
+
+    expect(config).toMatchObject({
+      enabled: true,
+      provider: "anthropic-bedrock",
+    });
+  });
+
+  // Finding B: base_url validation
+  it("rejects a malformed ai_base_url for base-url providers", () => {
+    expect(() =>
+      readAiConfig(
+        inputReader({
+          ...enabledInputs,
+          ai_base_url: "not a url",
+          ai_provider: "openai-compatible",
+        }),
+      ),
+    ).toThrow("ai_base_url");
+  });
+
+  it("rejects a non-https ai_base_url for non-local hosts", () => {
+    expect(() =>
+      readAiConfig(
+        inputReader({
+          ...enabledInputs,
+          ai_base_url: "http://models.example.test/v1",
+          ai_provider: "openai-compatible",
+        }),
+      ),
+    ).toThrow("https");
+  });
+
+  it("accepts http://localhost base_url for local proxies", () => {
+    const config = readAiConfig(
+      inputReader({
+        ...enabledInputs,
+        ai_base_url: "http://localhost:8080/v1",
+        ai_provider: "openai-compatible",
+      }),
+    );
+
+    expect(config).toMatchObject({
+      enabled: true,
+      provider: "openai-compatible",
+    });
+  });
+
+  it("accepts https ai_base_url for base-url providers", () => {
+    const config = readAiConfig(
+      inputReader({
+        ...enabledInputs,
+        ai_base_url: "https://models.example.test/v1",
+        ai_provider: "openai-compatible",
+      }),
+    );
+
+    expect(config).toMatchObject({
+      enabled: true,
+      provider: "openai-compatible",
+    });
+  });
+
   it("omits the API key from safe summaries", () => {
     const config = readAiConfig(inputReader(enabledInputs));
 
